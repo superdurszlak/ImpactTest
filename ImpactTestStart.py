@@ -10,13 +10,52 @@ class ImpactTestGUI():
         # Initialize
         self.master = Tk()
         self.PROCEED = Button(self.master)
-        self.notebook = ttk.Notebook(self.master)
-        self.frame = Frame(self.notebook)
+        self.frame = Frame(self.master)
         # Labels
+        self.projecileMainLabel = ttk.Label(self.frame, text="Projectile")
         self.projectileLabel = ttk.Label(self.frame, text="Projectile type")
-        self.armorRadiusLabel = ttk.Label(self.frame, text="Armor plate radius")
-        self.armorLayersLabel = ttk.Label(self.frame, text="Armor layers - top towards projectile")
-        self.armorObliquityLabel = ttk.Label(self.frame, text="Armor obliquity - 0 indicates normal to projectile")
+        self.velocityLabel = ttk.Label(self.frame, text="Projectile velocity [m/s]")
+        self.armorMainLabel = ttk.Label(self.frame, text="Armor")
+        self.armorRadiusLabel = ttk.Label(self.frame, text="Armor plate radius [mm]")
+        self.armorLayersLabel = ttk.Label(self.frame, text="No. of armor layers")
+        self.armorObliquityLabel = ttk.Label(self.frame, text="Armor obliquity [deg]")
+        self.modelMainLabel = ttk.Label(self.frame, text="Mesh")
+        self.meshElementSize = ttk.Label(self.frame, text="Element size [mm]")
+        # Variables
+        self.projectile = StringVar()
+        self.projectileParts = [x for x in self.parts()]
+        self.velocity = StringVar()
+        self.obliquity = StringVar()
+        self.radius = StringVar()
+        self.layersCount = StringVar()
+        self.elementSize = StringVar()
+        # Editable fields
+        self.projectileField = ttk.Combobox(
+            self.frame,
+            textvariable=self.projectile,
+            values=self.projectileParts
+        )
+        self.velocityField = ttk.Entry(
+            self.frame,
+            textvariable=self.velocity
+        )
+        self.obliquityField = ttk.Entry(
+            self.frame,
+            textvariable=self.obliquity
+        )
+        self.radiusField = ttk.Entry(
+            self.frame,
+            textvariable=self.radius
+        )
+        self.meshElementSizeField = ttk.Entry(
+            self.frame,
+            textvariable=self.elementSize
+        )
+        self.layersCountField = Spinbox(
+            self.frame,
+            values=range(1, 10),
+            textvariable=self.layersCount
+        )
         # Configure
         self.configureWidgets()
         # Start
@@ -27,18 +66,30 @@ class ImpactTestGUI():
         self.master.title("Armor impact menu")
         self.master.columnconfigure(0, weight=1)
         self.master.rowconfigure(0, weight=1)
-        self.notebook.grid(row=0, column=0)
         self.frame.grid(row=0, column=0)
+        # ENTRIES
+        self.projectileField.grid(column=1, row=1, sticky=W)
+        self.velocityField.grid(column=1, row=2, sticky=W)
+        self.radiusField.grid(column=1, row=4, sticky=W)
+        self.obliquityField.grid(column=1, row=5, sticky=W)
+        self.layersCountField.bind("<<ValueChange>>", self.updateLayerList)
+        self.layersCountField.grid(column=1, row=6, sticky=W)
+        self.meshElementSizeField.grid(column=1, row=8, sticky=W)
         # PROCEED button
         self.PROCEED['text'] = "Proceed"
         self.PROCEED['bg'] = "white"
         self.PROCEED['command'] = self.proceed
-        self.PROCEED.pack({'side': 'bottom'})
+        self.PROCEED.grid(column=0, row=1)
         # Labels
-        self.projectileLabel.grid(column=0, row=0)
-        self.armorRadiusLabel.grid(column=0, row=1)
-        self.armorLayersLabel.grid(column=0, row=2)
-        self.armorObliquityLabel.grid(column=0, row=3)
+        self.projecileMainLabel.grid(column=0, row=0, sticky=W)
+        self.projectileLabel.grid(column=0, row=1, sticky=W)
+        self.velocityLabel.grid(column=0, row=2, sticky=W)
+        self.armorMainLabel.grid(column=0, row=3, sticky=W)
+        self.armorRadiusLabel.grid(column=0, row=4, sticky=W)
+        self.armorObliquityLabel.grid(column=0, row=5, sticky=W)
+        self.armorLayersLabel.grid(column=0, row=6, sticky=W)
+        self.modelMainLabel.grid(column=0, row=7, sticky=W)
+        self.meshElementSize.grid(column=0, row=8, sticky=W)
         # Adjust size
         self.master.minsize(400, 700)
 
@@ -47,6 +98,15 @@ class ImpactTestGUI():
     def proceed(self):
         # PROCEED code
         self.master.destroy()
+
+    # TODO: Implement layer config change
+    def updateLayerList(self, arg):
+        pass
+
+    def parts(self):
+        for p in mdb.models['Model-1'].parts.keys():
+            if p.startswith('Projectile'):
+                yield p
 
 
 def __importParts():
@@ -71,6 +131,6 @@ def __startWindow():
 
 
 def run():
-    parts = __importParts()
+    # parts = __importParts()
     # materials= __importMaterials()
     __startWindow()
