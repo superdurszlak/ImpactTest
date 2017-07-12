@@ -1,6 +1,8 @@
 import os
 
 import math
+from pickle import Unpickler
+
 from Tkinter import *
 import ttk
 
@@ -192,11 +194,18 @@ def __importParts():
 
 
 def __importMaterials():
-    directory = os.listdir(os.path.dirname(os.path.realpath(__file__)) + "/Material")
+    from material import createMaterialFromDataString
+    __directory=os.path.dirname(os.path.realpath(__file__)) + "\\Materials\\"
+    directory = os.listdir(__directory)
     materials = []
     for file in directory:
         if file.endswith(".lib"):
-            materials.append("material library")
+            f = open(__directory+"\\"+file,'r')
+            lib = Unpickler(f).load()
+            f.close()
+            for (a, b, name, c, mat) in lib:
+                if b != -1:
+                    createMaterialFromDataString('Model-1', mat['Vendor material name'], mat['version'], mat['Data'])
     return materials
 
 
@@ -206,5 +215,6 @@ def __startWindow():
 
 def run():
     # parts = __importParts()
-    # materials= __importMaterials()
+    materials= __importMaterials()
+
     __startWindow()
