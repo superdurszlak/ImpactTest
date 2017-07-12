@@ -1,3 +1,4 @@
+import json
 import os
 
 import math
@@ -7,6 +8,7 @@ from Tkinter import *
 import ttk
 
 from abaqus import mdb, session
+from material import createMaterialFromDataString
 
 
 class ImpactTestGUI():
@@ -186,15 +188,10 @@ class ImpactTestGUI():
 
 
 def __importParts():
-    parts = []
-    for part in mdb.models['Model-1'].parts.items():
-        if part.name.endswith("Projectile"):
-            parts.append(part)
-    return parts
+    pass
 
 
 def __importMaterials():
-    from material import createMaterialFromDataString
     __directory=os.path.dirname(os.path.realpath(__file__)) + "\\Materials\\"
     directory = os.listdir(__directory)
     materials = []
@@ -214,7 +211,6 @@ def __startWindow():
 
 
 def run():
-    # parts = __importParts()
-    materials= __importMaterials()
-
+    __importMaterials()
+    __importParts()
     __startWindow()
