@@ -286,6 +286,8 @@ def __importParts():
 
 def __importMaterials():
     __directory=os.path.dirname(os.path.realpath(__file__)) + "\\Materials\\"
+    if not os.path.exists(__directory):
+        os.makedirs(__directory)
     directory = os.listdir(__directory)
     materials = []
     for file in directory:
