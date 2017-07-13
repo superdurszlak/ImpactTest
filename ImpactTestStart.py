@@ -6,6 +6,7 @@ from pickle import Unpickler
 
 from Tkinter import *
 import ttk
+import tkFileDialog
 
 from abaqus import mdb, session
 from material import createMaterialFromDataString
@@ -16,6 +17,8 @@ class ImpactTestGUI():
         # Initialize
         self.master = Tk()
         self.PROCEED = Button(self.master)
+        self.SAVE = Button(self.master)
+        self.LOAD = Button(self.master)
         self.frame = Frame(self.master, height=300)
         self.layup = Frame(self.master, height=300)
         # Labels
@@ -86,13 +89,46 @@ class ImpactTestGUI():
         self.PROCEED['text'] = "Proceed"
         self.PROCEED['bg'] = "white"
         self.PROCEED['command'] = self.proceed
-        self.PROCEED.grid(column=0, row=2, sticky='S')
+        self.PROCEED.grid(column=2, row=2, sticky='SW')
+        # SAVE button
+        self.SAVE['text'] = "Save..."
+        self.SAVE['bg'] = "white"
+        self.SAVE['command'] = self.save
+        self.SAVE.grid(column=1, row=2, sticky='S')
+        # LOAD button
+        self.LOAD['text'] = "Load..."
+        self.LOAD['bg'] = "white"
+        self.LOAD['command'] = self.load
+        self.LOAD.grid(column=0, row=2, sticky='SE')
 
 
     # TODO: Implement proceed
     def proceed(self):
-        # PROCEED code
+        config = self.prepareModelConfig()
         self.master.destroy()
+    def save(self):
+        config = self.prepareModelConfig()
+        file = tkFileDialog.asksaveasfile(
+            mode='wb',
+            defaultextension='.cfg',
+            filetypes=[
+                ('Configuration files', '.cfg')
+            ]
+        )
+        if file is not None:
+            file.write(json.dumps(config))
+            file.close()
+
+    def load(self):
+        opts = {
+            'filetypes': [('Configuration file', '.cfg')]
+        }
+        filename=tkFileDialog.askopenfilename(**opts)
+        if filename != "":
+            file = open(filename, mode='r')
+            config = json.load(file)
+            self.loadModelFromConfig(config)
+
 
     # TODO: Implement layer config change
     def updateLayerList(self):
@@ -120,7 +156,7 @@ class ImpactTestGUI():
             self.createLayupRow(len(self.layupWidgets))
 
     def createLayupRow(self, idx):
-        label = ttk.Label(self.layup, text="Layer "+str(idx+1))
+        label = ttk.Label(self.layup, text=str(idx+1))
         label.grid(column=0, row=idx+1, sticky='NW')
         matvar = StringVar()
         material = ttk.Combobox(self.layup, textvariable=matvar, values=self.armorMaterials)
@@ -159,8 +195,8 @@ class ImpactTestGUI():
         self.master.title("Armor impact menu")
         self.master.columnconfigure(0, weight=1)
         self.master.rowconfigure(0, weight=1)
-        self.frame.grid(row=0, column=0, sticky='NW')
-        self.layup.grid(row=1, column=0, sticky='NW')
+        self.frame.grid(row=0, column=1, sticky='NW')
+        self.layup.grid(row=1, column=1, sticky='NW')
         # Minimum window size
         self.master.minsize(400, 700)
 
@@ -186,6 +222,63 @@ class ImpactTestGUI():
         self.materialLabel.grid(column=1, row=0, sticky='NW')
         self.layerThicknessLabel.grid(column=2, row=0, sticky='NW')
 
+    def prepareModelConfig(self):
+        config = {}
+        layers = []
+        for (label, matvar, material, thickvar, thickness) in self.layupWidgets:
+            layers.append({
+                'material': matvar.get(),
+                'thickness': float(thickvar.get())/1000.0
+            })
+        config['projectile'] = {
+            'type': self.projectile.get(),
+            'velocity': float(self.velocity.get()),
+        }
+        config['armor'] = {
+            'radius': float(self.radius.get())/1000.0,
+            'obliquity': float(self.obliquity.get())*math.pi/180.0,
+            'layers': layers
+        }
+        config['meshElementSize'] = float(self.elementSize.get())/1000.0
+        return config
+
+    def loadModelFromConfig(self, config):
+        if 'projectile' in config:
+            if 'type' in config['projectile']:
+                if config['projectile']['type'] in self.parts():
+                    self.projectile.set(config['projectile'][u'type'])
+            if 'velocity' in config['projectile']:
+                self.velocity.set(round(float(config['projectile']['velocity']), 1))
+        if 'armor' in config:
+            if 'radius' in config['armor']:
+                self.radius.set(round(float(config[u'armor'][u'radius'])*1000.0, 1))
+            if 'innerRadius' in config['armor']:
+                pass
+            if 'obliquity' in config['armor']:
+                self.obliquity.set(round(float(config['armor']['obliquity'])*180.0/math.pi, 1))
+            if 'layers' in config['armor']:
+                self.loadLayersFromConfig(config['armor']['layers'])
+        if 'meshElementSize' in config:
+            self.elementSize.set(round(float(config['meshElementSize'])*1000.0, 3))
+        self.verifyFloats()
+
+    def loadLayersFromConfig(self, layers):
+        self.adjustLayup(0)
+        self.layersCount.set(len(layers))
+        self.adjustLayup(len(layers))
+        i = 0
+        for layer in layers:
+            material = ""
+            thickness = 0.25
+            if 'material' in layer and layer['material'] in self.materials():
+                material = layer['material']
+            if 'thickness' in layer:
+                thickness = round(float(layer['thickness'])*1000.0, 2)
+            row = self.layupWidgets[i]
+            i += 1
+            row[1].set(material)
+            row[3].set(thickness)
+
 
 def __importParts():
     pass
@@ -197,7 +290,7 @@ def __importMaterials():
     materials = []
     for file in directory:
         if file.endswith(".lib"):
-            f = open(__directory+"\\"+file,'r')
+            f = open(__directory+"\\"+file, 'r')
             lib = Unpickler(f).load()
             f.close()
             for (a, b, name, c, mat) in lib:
