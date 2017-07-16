@@ -11,6 +11,8 @@ import tkFileDialog
 from abaqus import mdb, session
 from material import createMaterialFromDataString
 
+from ImpactTestKernel import ImpactTestKernel
+
 
 class ImpactTestGUI():
     def __init__(self):
@@ -106,6 +108,7 @@ class ImpactTestGUI():
     def proceed(self):
         config = self.prepareModelConfig()
         self.master.destroy()
+        ImpactTestKernel(config).run()
     def save(self):
         config = self.prepareModelConfig()
         file = tkFileDialog.asksaveasfile(
@@ -130,7 +133,6 @@ class ImpactTestGUI():
             self.loadModelFromConfig(config)
 
 
-    # TODO: Implement layer config change
     def updateLayerList(self):
         try:
             int(self.layersCount.get())
