@@ -1,6 +1,7 @@
 from abaqus import mdb, session
 import part
 from abaqusConstants import *
+import regionToolset
 
 class ImpactTestKernel():
     def __init__(self, config):
@@ -78,8 +79,20 @@ class ImpactTestKernel():
         pass
 
     def createCompositeLayup(self):
-        layup = mdb.models['Model-1'].parts['Target'].CompositeLayup('Layup', elementType=SOLID)
-        layup.setValues(orientation=mdb.models['Model-1'].parts['Target'].datums.values()[0])
+        part=mdb.models['Model-1'].parts['Target']
+        layup = part.CompositeLayup('Layup', elementType=SOLID)
+        layup.orientation.setValues(
+            orientationType=SYSTEM,
+            localCsys=part.datums[2],
+            stackDirection=STACK_2
+        )
+        cells = part.cells
+        cells = cells.getSequenceFromMask(mask=('[#1 ]', ), )
+        region = regionToolset.Region(cells=cells)
+        i=0
+        for layer in self.targetLayers:
+            self.__plyFor(layup, region, layer, i)
+            i += 1
 
     def __createTargetSketch(self):
         sketch = mdb.models['Model-1'].ConstrainedSketch('Target-Sketch', self.targetRadius*2.0)
@@ -90,3 +103,21 @@ class ImpactTestKernel():
         for layer in self.targetLayers:
             thickness += layer['thickness']
         return thickness
+
+    def __plyFor(self, layup, region, layer, idx):
+        material = layer['material']
+        thickness = layer['thickness']
+        layup.CompositePly(
+            suppressed=False,
+            plyName='Ply-'+str(idx)+'-'+str(material),
+            region=region,
+            material=str(material),
+            thicknessType=SPECIFY_THICKNESS,
+            thickness=thickness,
+            orientationType=ANGLE_0,
+            additionalRotationType=ROTATION_NONE,
+            additionalRotationField='',
+            axis=AXIS_3,
+            angle=0.0,
+            numIntPoints=1
+        )
