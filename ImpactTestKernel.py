@@ -1,5 +1,6 @@
 from abaqus import mdb, session
 import part
+from abaqusConstants import *
 
 class ImpactTestKernel():
     def __init__(self, config):
@@ -31,7 +32,14 @@ class ImpactTestKernel():
         pass
 
     def createTargetPart(self):
-        mdb.models['Model-1'].Part('Target')
+        self.__createTargetSketch()
+        part = mdb.models['Model-1'].Part('Target', dimensionality=THREE_D, type=DEFORMABLE_BODY)
+        part.BaseSolidExtrude(mdb.models['Model-1'].sketches['Target-Sketch'], self.__calculateTargetThickness())
+        mdb.models['Model-1'].parts['Target'].DatumCsysByDefault(CARTESIAN)
+        mdb.models['Model-1'].parts['Target'].MaterialOrientation(
+            stackDirection=STACK_3,
+            localCsys=mdb.models['Model-1'].parts['Target'].datums.values()[0]
+        )
 
     def createModelAssembly(self):
         pass
@@ -70,4 +78,15 @@ class ImpactTestKernel():
         pass
 
     def createCompositeLayup(self):
-        pass
+        layup = mdb.models['Model-1'].parts['Target'].CompositeLayup('Layup', elementType=SOLID)
+        layup.setValues(orientation=mdb.models['Model-1'].parts['Target'].datums.values()[0])
+
+    def __createTargetSketch(self):
+        sketch = mdb.models['Model-1'].ConstrainedSketch('Target-Sketch', self.targetRadius*2.0)
+        sketch.CircleByCenterPerimeter(center=(0.0, 0.0), point1=(0.0, self.targetRadius))
+
+    def __calculateTargetThickness(self):
+        thickness = 0.0
+        for layer in self.targetLayers:
+            thickness += layer['thickness']
+        return thickness
