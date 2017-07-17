@@ -52,6 +52,7 @@ class ImpactTestKernel():
             )
             i += 1
             self.assemblyOrder.append((name, layer['thickness']))
+            self.__partitionTargetLayer(part, layer['thickness'])
 
 
     def createModelAssembly(self):
@@ -102,9 +103,60 @@ class ImpactTestKernel():
     def __createTargetSketch(self):
         sketch = mdb.models['Model-1'].ConstrainedSketch('Target-Sketch', self.targetRadius*2.0)
         sketch.CircleByCenterPerimeter(center=(0.0, 0.0), point1=(0.0, self.targetRadius))
+        innerRadius = self.targetRadius/4.0
+        innerSketch = mdb.models['Model-1'].ConstrainedSketch('Inner-Sketch', self.targetRadius/2.0)
+        innerSketch.CircleByCenterPerimeter(center=(0.0, 0.0), point1=(0.0, innerRadius))
 
     def __calculateTargetThickness(self):
         thickness = 0.0
         for layer in self.targetLayers:
             thickness += layer['thickness']
         return thickness
+
+    def __partitionTargetLayer(self, part, thickness):
+        faces, edges, datums = part.faces, part.edges, part.datums
+        transform = part.MakeSketchTransform(
+            sketchPlane=faces[1],
+            sketchUpEdge=datums[2].axis2,
+            sketchPlaneSide=SIDE1,
+            origin=(0.0, 0.0, thickness)
+        )
+        sketch = mdb.models['Model-1'].ConstrainedSketch(
+            name='__profile__',
+            sheetSize=self.targetRadius/2.0,
+            gridSpacing=0.001,
+            transform=transform
+        )
+        geometry, vertices, dimensions, constraints = (
+            sketch.geometry,
+            sketch.vertices,
+            sketch.dimensions,
+            sketch.constraints
+        )
+        sketch.sketchOptions.setValues(decimalPlaces=3)
+        sketch.setPrimaryObject(option=SUPERIMPOSE)
+        part.projectReferencesOntoSketch(sketch=sketch, filter=COPLANAR_EDGES)
+        part = mdb.models['Model-1'].parts[part.name]
+        sketch.retrieveSketch(sketch=mdb.models['Model-1'].sketches['Inner-Sketch'])
+        faces = part.faces
+        pickedFaces = faces.getSequenceFromMask(mask=('[#2 ]', ), )
+        edges, datums = part.edges, part.datums
+        part.PartitionFaceBySketch(
+            sketchUpEdge=datums[2].axis2,
+            faces=pickedFaces,
+            sketch=sketch
+        )
+        sketch.unsetPrimaryObject()
+        del mdb.models['Model-1'].sketches['__profile__']
+        cells = part.cells
+        pickedCells = cells.getSequenceFromMask(mask=('[#1 ]', ), )
+        edges, datums = part.edges, part.datums
+        pickedEdges = (edges[1], )
+        part.PartitionCellByExtrudeEdge(
+            line=datums[2].axis3,
+            cells=pickedCells,
+            edges=pickedEdges,
+            sense=REVERSE
+        )
+
+
