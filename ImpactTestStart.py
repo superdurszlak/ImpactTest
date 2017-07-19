@@ -9,6 +9,7 @@ import ttk
 import tkFileDialog
 
 from abaqus import mdb, session
+from abaqusConstants import *
 from material import createMaterialFromDataString
 
 from ImpactTestKernel import ImpactTestKernel
@@ -304,6 +305,15 @@ def __importMaterials():
 
 
 def __startWindow():
+    session.graphicsOptions.setValues(
+        highlightMethodHint=XOR,
+        antiAlias=OFF,
+        translucencyMode=1
+    )
+    session.journalOptions.setValues(
+        replayGeometry=COORDINATE,
+        recoverGeometry=COORDINATE
+    )
     gui = ImpactTestGUI()
 
 

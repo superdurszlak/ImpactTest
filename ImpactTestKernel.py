@@ -1,5 +1,5 @@
 from abaqus import mdb, session
-import part
+import part, mesh
 from abaqusConstants import *
 import regionToolset
 
@@ -89,13 +89,43 @@ class ImpactTestKernel():
         pass
 
     def createTargetSurfaceSets(self):
-        pass
+        for element in self.assemblyOrder:
+            name = element[0]
+            part = mdb.models['Model-1'].parts[name]
+            session.viewports['Viewport: 1'].setValues(displayedObject=part)
+            session.viewports['Viewport: 1'].partDisplay.setValues(mesh=ON)
+            elements = part.elements
+            elements = elements.getByBoundingBox(
+                -self.targetRadius-0.001,
+                -self.targetRadius-0.001,
+                -0.001,
+                self.targetRadius+0.001,
+                self.targetRadius+0.001,
+                element[1]+0.001
+            )
+            part.Surface(face1Elements=elements, name="whole")
 
     def createProjetileSurfaceSets(self):
         pass
 
     def createTargetMesh(self):
-        pass
+        for element in self.assemblyOrder:
+            name = element[0]
+            part = mdb.models['Model-1'].parts[name]
+            regions = part.cells.getSequenceFromMask(mask=('[#3 ]', ), )
+            part.setMeshControls(regions=regions, technique=STRUCTURED)
+            regions = part.cells.getSequenceFromMask(mask=('[#4 ]', ), )
+            part.setMeshControls(regions=regions, algorithm=MEDIAL_AXIS)
+            part.seedPart(size=self.meshElementSize, deviationFactor=0.1, minSizeFactor=0.1)
+            edges = part.edges.getSequenceFromMask(mask=('[#9300 ]', ), )
+            part.seedEdgeByNumber(edges=edges, number=30)
+            edges = part.edges.getSequenceFromMask(mask=('[#55 ]', ), )
+            part.seedEdgeBySize(edges=edges, size=self.meshElementSize*20.0, deviationFactor=0.1)
+            elemType1 = mesh.ElemType(elemCode=C3D8RT, elemLibrary=EXPLICIT,
+                                      kinematicSplit=AVERAGE_STRAIN, secondOrderAccuracy=OFF,
+                                      hourglassControl=ENHANCED, distortionControl=DEFAULT, elemDeletion=ON)
+            part.setElementType(regions=(part.cells, ), elemTypes=(elemType1, ))
+            part.generateMesh()
 
     def createProjectileMesh(self):
         pass
@@ -158,5 +188,10 @@ class ImpactTestKernel():
             edges=pickedEdges,
             sense=REVERSE
         )
+        part.DatumPlaneByPrincipalPlane(principalPlane=YZPLANE, offset=0.0)
+        cells = part.cells
+        pickedCells = cells.getSequenceFromMask(mask=('[#1 ]', ), )
+        datums = part.datums
+        part.PartitionCellByDatumPlane(datumPlane=datums[7], cells=pickedCells)
 
 
