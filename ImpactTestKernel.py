@@ -66,6 +66,28 @@ class ImpactTestKernel():
             part = mdb.models['Model-1'].parts[name]
             instance = assembly.Instance(name=name, part=part, dependent=ON)
             assembly.translate(instanceList=(name, ), vector=(0.0, 0.0, offset))
+        core = mdb.models['Model-1'].parts['Core_'+str(self.projectileType)]
+        casing = mdb.models['Model-1'].parts['Casing_'+str(self.projectileType)]
+        stdOffset = 0.005 - offset/math.cos(math.pi*self.targetObliquity/180.0)
+        xyzOffset = (
+            0.0,
+            0.0,
+            stdOffset
+        )
+        axisPt = (0.0, 0.0, offset/2.0)
+        axisDir = (1.0, 0.0, 0.0)
+        for part in (core, casing):
+            assembly.Instance(name=part.name, part=part, dependent=ON)
+        assembly.translate(
+            instanceList=(core.name, casing.name),
+            vector=xyzOffset
+        )
+        assembly.rotate(
+            instanceList=(core.name, casing.name),
+            axisPoint=axisPt,
+            axisDirection=axisDir,
+            angle=self.targetObliquity
+        )
 
     def createJob(self):
         pass
@@ -91,35 +113,7 @@ class ImpactTestKernel():
     #TODO: Find out a way to select inner and outer element faces separately
     def createTargetSurfaceSets(self):
         for element in self.assemblyOrder:
-            name = element[0]
-            part = mdb.models['Model-1'].parts[name]
-            session.viewports['Viewport: 1'].setValues(displayedObject=part)
-            session.viewports['Viewport: 1'].partDisplay.setValues(mesh=ON)
-            elements = part.elements
-            innerElementFaces = []
-            outerElementFaces = []
-            for f in part.elementFaces:
-                inner = False
-                for n in f.getNodes():
-                    x, y, z = n.coordinates
-                    #Check if any of the nodes are inside the plate's cylinder
-                    if math.pow(
-                        1000.0*x,
-                        2
-                    ) + math.pow(
-                        1000.0*y,
-                        2
-                    ) - math.pow(
-                        1000.0*self.targetRadius,
-                        2
-                    ) < -self.meshElementSize:
-                        if 0 < z < element[1]:
-                            inner = True
-                            break
-                if inner is True:
-                    innerElementFaces.append(f)
-                else:
-                    outerElementFaces.append(f)
+            pass
             #part.Surface(side2Faces=innerElementFaces, name="inner")
             #part.Surface(side1Faces=outerElementFaces, name="outer")
 
@@ -186,10 +180,13 @@ class ImpactTestKernel():
         casing.generateMesh()
 
     def __createTargetSketch(self):
+        radians = math.pi*self.targetObliquity/180.0
+        upScale=1.0/math.cos(radians)
+        self.targetRadius *= upScale
         sketch = mdb.models['Model-1'].ConstrainedSketch('Target-Sketch', self.targetRadius*2.0)
         sketch.CircleByCenterPerimeter(center=(0.0, 0.0), point1=(0.0, self.targetRadius))
-        innerRadius = self.targetRadius/4.0
-        innerSketch = mdb.models['Model-1'].ConstrainedSketch('Inner-Sketch', self.targetRadius/2.0)
+        innerRadius = upScale*self.targetRadius/3.0
+        innerSketch = mdb.models['Model-1'].ConstrainedSketch('Inner-Sketch', innerRadius*2.0)
         innerSketch.CircleByCenterPerimeter(center=(0.0, 0.0), point1=(0.0, innerRadius))
 
     def __calculateTargetThickness(self):

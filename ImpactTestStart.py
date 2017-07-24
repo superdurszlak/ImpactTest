@@ -72,7 +72,7 @@ class ImpactTestGUI():
             self.frame,
             values=range(1, 10),
             textvariable=self.layersCount,
-            command = self.updateLayerList
+            command=self.updateLayerList
         )
         self.layupWidgets = []
         # Configure
@@ -176,9 +176,9 @@ class ImpactTestGUI():
     def verifyFloats(self):
         for (label, matvar, material, thickvar, thickness) in self.layupWidgets:
             self.verifyStringVarFloat(thickvar, treshold=0.5, maximum=150.0)
-        self.verifyStringVarFloat(self.radius, treshold=25.0, maximum=45.0)
+        self.verifyStringVarFloat(self.radius, treshold=30.0, maximum=55.0)
         self.verifyStringVarFloat(self.obliquity, treshold=0.0, maximum=60.0)
-        self.verifyStringVarFloat(self.velocity, treshold=0.0, maximum=2000.0)
+        self.verifyStringVarFloat(self.velocity, treshold=100.0, maximum=2000.0)
         self.verifyStringVarFloat(self.elementSize, treshold=0.05, maximum=2.0)
 
     def verifyStringVarFloat(self, strvar, treshold=0.0, maximum=None):
