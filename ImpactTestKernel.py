@@ -1,3 +1,4 @@
+import math
 from abaqus import mdb, session
 import part, mesh
 from abaqusConstants import *
@@ -54,7 +55,6 @@ class ImpactTestKernel():
             self.assemblyOrder.append((name, layer['thickness']))
             self.__partitionTargetLayer(part, layer['thickness'])
 
-
     def createModelAssembly(self):
         assembly = mdb.models['Model-1'].rootAssembly
         assembly.DatumCsysByDefault(CARTESIAN)
@@ -88,6 +88,7 @@ class ImpactTestKernel():
     def createInteractionProperties(self):
         pass
 
+    #TODO: Find out a way to select inner and outer element faces separately
     def createTargetSurfaceSets(self):
         for element in self.assemblyOrder:
             name = element[0]
@@ -95,15 +96,32 @@ class ImpactTestKernel():
             session.viewports['Viewport: 1'].setValues(displayedObject=part)
             session.viewports['Viewport: 1'].partDisplay.setValues(mesh=ON)
             elements = part.elements
-            elements = elements.getByBoundingBox(
-                -self.targetRadius-0.001,
-                -self.targetRadius-0.001,
-                -0.001,
-                self.targetRadius+0.001,
-                self.targetRadius+0.001,
-                element[1]+0.001
-            )
-            part.Surface(face1Elements=elements, name="whole")
+            innerElementFaces = []
+            outerElementFaces = []
+            for f in part.elementFaces:
+                inner = False
+                for n in f.getNodes():
+                    x, y, z = n.coordinates
+                    #Check if any of the nodes are inside the plate's cylinder
+                    if math.pow(
+                        1000.0*x,
+                        2
+                    ) + math.pow(
+                        1000.0*y,
+                        2
+                    ) - math.pow(
+                        1000.0*self.targetRadius,
+                        2
+                    ) < -self.meshElementSize:
+                        if 0 < z < element[1]:
+                            inner = True
+                            break
+                if inner is True:
+                    innerElementFaces.append(f)
+                else:
+                    outerElementFaces.append(f)
+            #part.Surface(side2Faces=innerElementFaces, name="inner")
+            #part.Surface(side1Faces=outerElementFaces, name="outer")
 
     def createProjetileSurfaceSets(self):
         pass
@@ -127,8 +145,45 @@ class ImpactTestKernel():
             part.setElementType(regions=(part.cells, ), elemTypes=(elemType1, ))
             part.generateMesh()
 
+
     def createProjectileMesh(self):
-        pass
+        core = mdb.models['Model-1'].parts['Core_'+str(self.projectileType)]
+        corec = core.cells.getSequenceFromMask(mask=('[#1 ]', ), )
+        core.setMeshControls(regions=corec, algorithm=MEDIAL_AXIS)
+        core.seedPart(size=self.meshElementSize, deviationFactor=0.1, minSizeFactor=0.1)
+        core.setElementType(
+            regions=(corec, ),
+            elemTypes=(
+                mesh.ElemType(
+                    elemCode=C3D8RT,
+                    elemLibrary=EXPLICIT,
+                    kinematicSplit=AVERAGE_STRAIN,
+                    secondOrderAccuracy=OFF,
+                    hourglassControl=ENHANCED,
+                    distortionControl=DEFAULT,
+                    elemDeletion=OFF
+                ),
+            )
+        )
+        core.generateMesh()
+        casing = mdb.models['Model-1'].parts['Casing_'+str(self.projectileType)]
+        casingc = casing.cells.getSequenceFromMask(mask=('[#1 ]', ), )
+        casing.setMeshControls(regions=casingc, elemShape=TET, technique=FREE)
+        casing.seedPart(size=self.meshElementSize, deviationFactor=0.1, minSizeFactor=0.1)
+        casing.setElementType(
+            regions=(casingc, ),
+            elemTypes=(
+                mesh.ElemType(
+                    elemCode=C3D10MT,
+                    elemLibrary=EXPLICIT,
+                    secondOrderAccuracy=OFF,
+                    hourglassControl=ENHANCED,
+                    distortionControl=DEFAULT,
+                    elemDeletion=OFF
+                ),
+            )
+        )
+        casing.generateMesh()
 
     def __createTargetSketch(self):
         sketch = mdb.models['Model-1'].ConstrainedSketch('Target-Sketch', self.targetRadius*2.0)
@@ -193,5 +248,4 @@ class ImpactTestKernel():
         pickedCells = cells.getSequenceFromMask(mask=('[#1 ]', ), )
         datums = part.datums
         part.PartitionCellByDatumPlane(datumPlane=datums[7], cells=pickedCells)
-
 

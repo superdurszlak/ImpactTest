@@ -14,7 +14,7 @@ from material import createMaterialFromDataString
 
 from ImpactTestKernel import ImpactTestKernel
 
-
+availableParts = []
 class ImpactTestGUI():
     def __init__(self):
         # Initialize
@@ -144,9 +144,8 @@ class ImpactTestGUI():
         pass
 
     def parts(self):
-        for p in mdb.models['Model-1'].parts.keys():
-            if p.startswith('Projectile'):
-                yield p
+        for p in availableParts:
+            yield p
 
     def adjustLayup(self, count):
         while len(self.layupWidgets) > count:
@@ -239,7 +238,7 @@ class ImpactTestGUI():
         }
         config['armor'] = {
             'radius': float(self.radius.get())/1000.0,
-            'obliquity': float(self.obliquity.get())*math.pi/180.0,
+            'obliquity': float(self.obliquity.get()),
             'layers': layers
         }
         config['meshElementSize'] = float(self.elementSize.get())/1000.0
@@ -258,7 +257,7 @@ class ImpactTestGUI():
             if 'innerRadius' in config['armor']:
                 pass
             if 'obliquity' in config['armor']:
-                self.obliquity.set(round(float(config['armor']['obliquity'])*180.0/math.pi, 1))
+                self.obliquity.set(round(float(config['armor']['obliquity']), 1))
             if 'layers' in config['armor']:
                 self.loadLayersFromConfig(config['armor']['layers'])
         if 'meshElementSize' in config:
@@ -284,7 +283,36 @@ class ImpactTestGUI():
 
 
 def __importParts():
-    pass
+    del availableParts[:]
+    __directory = os.path.dirname(os.path.realpath(__file__)) + "\\Parts\\"
+    if not os.path.exists(__directory):
+        os.makedirs(__directory)
+    directories = os.listdir(__directory)
+    print(__directory)
+    for __dir in directories:
+        name = __dir
+        __dir = __directory + __dir
+        if os.path.isdir(__dir):
+            print(__dir)
+            projectile = __dir+"\\Projectile.sat"
+            print(projectile)
+            projectile = mdb.openAcis(projectile)
+            print("Projectile_"+name)
+            casing = mdb.models['Model-1'].PartFromGeometryFile(
+                "Casing_"+name,
+                projectile,
+                THREE_D,
+                DEFORMABLE_BODY,
+                bodyNum=2
+            )
+            core = mdb.models['Model-1'].PartFromGeometryFile(
+                "Core_"+name,
+                projectile,
+                THREE_D,
+                DEFORMABLE_BODY,
+                bodyNum=1
+            )
+            availableParts.append(name)
 
 
 def __importMaterials():
@@ -310,10 +338,7 @@ def __startWindow():
         antiAlias=OFF,
         translucencyMode=1
     )
-    session.journalOptions.setValues(
-        replayGeometry=COORDINATE,
-        recoverGeometry=COORDINATE
-    )
+    #session.journalOptions.setValues(replayGeometry=INDEX)
     gui = ImpactTestGUI()
 
 
