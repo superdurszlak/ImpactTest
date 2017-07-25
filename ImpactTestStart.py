@@ -14,10 +14,15 @@ from material import createMaterialFromDataString
 
 from ImpactTestKernel import ImpactTestKernel
 
+# List of available parts to be used in the model
 availableParts = []
+
+
+# Class for plugin's GUI
 class ImpactTestGUI():
+    # Initialize labels and editable fields
     def __init__(self):
-        # Initialize
+        # Main components and controls
         self.master = Tk()
         self.PROCEED = Button(self.master)
         self.SAVE = Button(self.master)
@@ -104,14 +109,18 @@ class ImpactTestGUI():
         self.LOAD['command'] = self.load
         self.LOAD.grid(column=0, row=2, sticky='SE')
 
-
-    # TODO: Implement proceed
+    # Proceed to model generation by plugin's kernel
     def proceed(self):
         config = self.prepareModelConfig()
+        # GUI isn't needed anymore
         self.master.destroy()
+        # Run kernel
         ImpactTestKernel(config).run()
+
+    # Save model's configuration to JSON-formatted file for later use
     def save(self):
         config = self.prepareModelConfig()
+        # Open file save dialog. 'cfg' extension stands for 'configuration' and is customary
         file = tkFileDialog.asksaveasfile(
             mode='wb',
             defaultextension='.cfg',
@@ -119,22 +128,27 @@ class ImpactTestGUI():
                 ('Configuration files', '.cfg')
             ]
         )
+        # Write configuration to file if selected
         if file is not None:
             file.write(json.dumps(config))
             file.close()
 
+    # Load previously model configuration
     def load(self):
         opts = {
             'filetypes': [('Configuration file', '.cfg')]
         }
-        filename=tkFileDialog.askopenfilename(**opts)
+        # Open file open dialog
+        filename = tkFileDialog.askopenfilename(**opts)
+        # Load configuration from file if any selected
         if filename != "":
             file = open(filename, mode='r')
             config = json.load(file)
             self.loadModelFromConfig(config)
 
-
+    # Update layer controls quantity on layersCount spinner value change
     def updateLayerList(self):
+        # Fix invalid value if necessary
         try:
             int(self.layersCount.get())
         except ValueError:
@@ -143,44 +157,60 @@ class ImpactTestGUI():
             self.adjustLayup(int(self.layersCount.get()))
         pass
 
+    # Yield parts from available parts' names list
     def parts(self):
         for p in availableParts:
             yield p
 
+    # Adjust layer controls to given layers number
     def adjustLayup(self, count):
+        # Get rid of extra controls
         while len(self.layupWidgets) > count:
             row = self.layupWidgets[-1]
             for el in row:
                 if hasattr(el, "destroy") and callable(el.destroy):
                     el.destroy()
             self.layupWidgets.pop()
+        # Create missing controls
         while len(self.layupWidgets) < count:
             self.createLayupRow(len(self.layupWidgets))
 
+    # Create controls for single layer
     def createLayupRow(self, idx):
-        label = ttk.Label(self.layup, text=str(idx+1))
-        label.grid(column=0, row=idx+1, sticky='NW')
+        # Label
+        label = ttk.Label(self.layup, text=str(idx + 1))
+        label.grid(column=0, row=idx + 1, sticky='NW')
+        # Material
         matvar = StringVar()
         material = ttk.Combobox(self.layup, textvariable=matvar, values=self.armorMaterials)
-        material.grid(column=1, row=idx+1, sticky='NW')
+        material.grid(column=1, row=idx + 1, sticky='NW')
+        # Thickness in [mm]
         thickvar = StringVar()
         thickness = ttk.Entry(self.layup, textvariable=thickvar, validate="focusout", validatecommand=self.verifyFloats)
-        thickness.grid(column=2, row=idx+1, sticky='NW')
+        thickness.grid(column=2, row=idx + 1, sticky='NW')
         tup = (label, matvar, material, thickvar, thickness)
         self.layupWidgets.append(tup)
 
+    # Yield loaded materials' names
     def materials(self):
         for m in mdb.models['Model-1'].materials.keys():
             yield m
 
+    # Check floats in editable fields for validity
     def verifyFloats(self):
+        # Allow layers to be between 0.5 and 150.0 [mm] thick
         for (label, matvar, material, thickvar, thickness) in self.layupWidgets:
             self.verifyStringVarFloat(thickvar, treshold=0.5, maximum=150.0)
+        # Allow target radius to be between 30.0 and 55.0 [mm]. Could be replaced with caliber-dependent radius
         self.verifyStringVarFloat(self.radius, treshold=30.0, maximum=55.0)
+        # Allow target obliquity to be between 0 (normal) and 60 [deg]
         self.verifyStringVarFloat(self.obliquity, treshold=0.0, maximum=60.0)
+        # Allow projectile initial velocity to be between 100.0 and 2000.0 [m/s]
         self.verifyStringVarFloat(self.velocity, treshold=100.0, maximum=2000.0)
+        # Allow element size to be between 0.05 and 2.0 [mm]
         self.verifyStringVarFloat(self.elementSize, treshold=0.05, maximum=2.0)
 
+    # Verify if StringVar's value is valid float and fits in limits
     def verifyStringVarFloat(self, strvar, treshold=0.0, maximum=None):
         if maximum is None:
             maximum = math.inf
@@ -193,6 +223,7 @@ class ImpactTestGUI():
         except ValueError:
             strvar.set(treshold)
 
+    # Set GUI title, layout, window size
     def configureAuxiliary(self):
         self.master.title("Armor impact menu")
         self.master.columnconfigure(0, weight=1)
@@ -202,6 +233,7 @@ class ImpactTestGUI():
         # Minimum window size
         self.master.minsize(400, 700)
 
+    # Set entries' layout
     def configureEntries(self):
         self.projectileField.grid(column=1, row=1, sticky='NW')
         self.velocityField.grid(column=1, row=2, sticky='NW')
@@ -210,6 +242,7 @@ class ImpactTestGUI():
         self.layersCountField.grid(column=1, row=6, sticky='NW')
         self.meshElementSizeField.grid(column=1, row=8, sticky='NW')
 
+    # Set labels' layout
     def configureLabels(self):
         self.projecileMainLabel.grid(column=0, row=0, sticky='NW')
         self.projectileLabel.grid(column=0, row=1, sticky='NW')
@@ -224,124 +257,151 @@ class ImpactTestGUI():
         self.materialLabel.grid(column=1, row=0, sticky='NW')
         self.layerThicknessLabel.grid(column=2, row=0, sticky='NW')
 
+    # Generate model configuration object that may be both saved to file or passed to kernel
     def prepareModelConfig(self):
         config = {}
         layers = []
         for (label, matvar, material, thickvar, thickness) in self.layupWidgets:
             layers.append({
                 'material': matvar.get(),
-                'thickness': float(thickvar.get())/1000.0
+                # Convert [mm] to [m]
+                'thickness': float(thickvar.get()) / 1000.0
             })
         config['projectile'] = {
             'type': self.projectile.get(),
+            # Leave [m/s] as-is
             'velocity': float(self.velocity.get()),
         }
         config['armor'] = {
-            'radius': float(self.radius.get())/1000.0,
+            # Convert [mm] to [m]
+            'radius': float(self.radius.get()) / 1000.0,
+            # Leave [deg] as-is
             'obliquity': float(self.obliquity.get()),
             'layers': layers
         }
-        config['meshElementSize'] = float(self.elementSize.get())/1000.0
+        # Convert [mm] to [m]
+        config['meshElementSize'] = float(self.elementSize.get()) / 1000.0
         return config
 
+    # Load model from configuration object and set entries to proper values
     def loadModelFromConfig(self, config):
         if 'projectile' in config:
             if 'type' in config['projectile']:
                 if config['projectile']['type'] in self.parts():
                     self.projectile.set(config['projectile'][u'type'])
             if 'velocity' in config['projectile']:
+                # Leave [m/s] as-is
                 self.velocity.set(round(float(config['projectile']['velocity']), 1))
         if 'armor' in config:
             if 'radius' in config['armor']:
-                self.radius.set(round(float(config[u'armor'][u'radius'])*1000.0, 1))
+                # Convert [m] back to [mm]
+                self.radius.set(round(float(config[u'armor'][u'radius']) * 1000.0, 1))
+            # Currently innerRadius value is ignored
             if 'innerRadius' in config['armor']:
                 pass
             if 'obliquity' in config['armor']:
+                # Leave [deg] as-is
                 self.obliquity.set(round(float(config['armor']['obliquity']), 1))
             if 'layers' in config['armor']:
                 self.loadLayersFromConfig(config['armor']['layers'])
         if 'meshElementSize' in config:
-            self.elementSize.set(round(float(config['meshElementSize'])*1000.0, 3))
+            # Convert [m] back to [mm]
+            self.elementSize.set(round(float(config['meshElementSize']) * 1000.0, 3))
         self.verifyFloats()
 
+    # Load target layers from config object section
     def loadLayersFromConfig(self, layers):
+        # Clear layers controls
         self.adjustLayup(0)
+        # Adjust layers controls to actual number of layers
         self.layersCount.set(len(layers))
         self.adjustLayup(len(layers))
         i = 0
         for layer in layers:
+            # Default material is none
             material = ""
-            thickness = 0.25
+            # Default thickness is 0.5 [mm]
+            thickness = 0.5
             if 'material' in layer and layer['material'] in self.materials():
                 material = layer['material']
             if 'thickness' in layer:
-                thickness = round(float(layer['thickness'])*1000.0, 2)
+                # Convert [m] to [mm]
+                thickness = round(float(layer['thickness']) * 1000.0, 2)
             row = self.layupWidgets[i]
             i += 1
+            # Set StringVars to proper values
             row[1].set(material)
             row[3].set(thickness)
 
-
+# Import parts from Parts folder subdirectories
 def __importParts():
+    # Clear list of available parts
     del availableParts[:]
+    # Make sure Parts directory exists or create one
     __directory = os.path.dirname(os.path.realpath(__file__)) + "\\Parts\\"
     if not os.path.exists(__directory):
         os.makedirs(__directory)
+    # List subdirectories
     directories = os.listdir(__directory)
-    print(__directory)
     for __dir in directories:
         name = __dir
         __dir = __directory + __dir
         if os.path.isdir(__dir):
-            print(__dir)
-            projectile = __dir+"\\Projectile.sat"
-            print(projectile)
+            # Open part file
+            projectile = __dir + "\\Projectile.sat"
             projectile = mdb.openAcis(projectile)
-            print("Projectile_"+name)
+            # Create casing assuming it's ID in AcisFile is 2
             casing = mdb.models['Model-1'].PartFromGeometryFile(
-                "Casing_"+name,
+                "Casing_" + name,
                 projectile,
                 THREE_D,
                 DEFORMABLE_BODY,
                 bodyNum=2
             )
+            # Create core assuming it's ID in AcisFile is 1
             core = mdb.models['Model-1'].PartFromGeometryFile(
-                "Core_"+name,
+                "Core_" + name,
                 projectile,
                 THREE_D,
                 DEFORMABLE_BODY,
                 bodyNum=1
             )
+            # Append subdirectory's name to available parts list
             availableParts.append(name)
 
-
+# Import materials to model
 def __importMaterials():
-    __directory=os.path.dirname(os.path.realpath(__file__)) + "\\Materials\\"
+    # Make sure Materials directory exists
+    __directory = os.path.dirname(os.path.realpath(__file__)) + "\\Materials\\"
     if not os.path.exists(__directory):
         os.makedirs(__directory)
+    # List all files in directory
     directory = os.listdir(__directory)
     materials = []
     for file in directory:
+        # Import all materials from all material libraries
         if file.endswith(".lib"):
-            f = open(__directory+"\\"+file, 'r')
+            f = open(__directory + "\\" + file, 'r')
+            # Unpickle library file
             lib = Unpickler(f).load()
             f.close()
             for (a, b, name, c, mat) in lib:
+                # Create materials from actual material datastrings
                 if b != -1:
                     createMaterialFromDataString('Model-1', mat['Vendor material name'], mat['version'], mat['Data'])
     return materials
 
-
+# Adjust Abaqus GUI to be less demanding and run plugin's GUI
 def __startWindow():
     session.graphicsOptions.setValues(
         highlightMethodHint=XOR,
         antiAlias=OFF,
         translucencyMode=1
     )
-    #session.journalOptions.setValues(replayGeometry=INDEX)
+    # session.journalOptions.setValues(replayGeometry=INDEX)
     gui = ImpactTestGUI()
 
-
+# Import materials, then parts, then create plugin's GUI window
 def run():
     __importMaterials()
     __importParts()
