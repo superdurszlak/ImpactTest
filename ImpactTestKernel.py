@@ -6,7 +6,7 @@ import regionToolset
 
 class ImpactTestKernel():
     def __init__(self, config):
-        self.projectileType = config['projectile']['type']
+        self.projectileType = str(config['projectile']['type'])
         self.projectileVelocity = config['projectile']['velocity']
         self.targetObliquity = config['armor']['obliquity']
         self.targetRadius = config['armor']['radius']
@@ -31,7 +31,7 @@ class ImpactTestKernel():
         self.createJob()
 
     def setModelConstants(self):
-        pass
+        mdb.models['Model-1'].setValues(absoluteZero=0, stefanBoltzmann=5.67037E-008)
 
     def createTargetParts(self):
         self.__createTargetSketch()
@@ -88,6 +88,15 @@ class ImpactTestKernel():
             axisDirection=axisDir,
             angle=self.targetObliquity
         )
+        xyzOffset = (
+            0.0,
+            -0.25*self.targetRadius*math.sin(math.pi*self.targetObliquity/180.0),
+            0.0
+        )
+        assembly.translate(
+            instanceList=(core.name, casing.name),
+            vector=xyzOffset
+        )
 
     def createJob(self):
         pass
@@ -99,10 +108,11 @@ class ImpactTestKernel():
         pass
 
     def applyBoundaryConditions(self):
-        pass
+        self.__encastreTargetSides()
 
     def applyInitialFields(self):
-        pass
+        self.__applyProjectileVelocity()
+        self.__applyInitialTemperature()
 
     def setInteractions(self):
         pass
@@ -182,12 +192,19 @@ class ImpactTestKernel():
     def __createTargetSketch(self):
         radians = math.pi*self.targetObliquity/180.0
         upScale=1.0/math.cos(radians)
-        self.targetRadius *= upScale
         sketch = mdb.models['Model-1'].ConstrainedSketch('Target-Sketch', self.targetRadius*2.0)
-        sketch.CircleByCenterPerimeter(center=(0.0, 0.0), point1=(0.0, self.targetRadius))
-        innerRadius = upScale*self.targetRadius/3.0
+        sketch.EllipseByCenterPerimeter(
+            center=(0.0, 0.0),
+            axisPoint1=(0.0, self.targetRadius*upScale),
+            axisPoint2=(self.targetRadius, 0.0)
+        )
+        innerRadius = self.targetRadius/2.0
         innerSketch = mdb.models['Model-1'].ConstrainedSketch('Inner-Sketch', innerRadius*2.0)
-        innerSketch.CircleByCenterPerimeter(center=(0.0, 0.0), point1=(0.0, innerRadius))
+        innerSketch.EllipseByCenterPerimeter(
+            center=(0.0, 0.0),
+            axisPoint1=(0.0, innerRadius*upScale),
+            axisPoint2=(innerRadius, 0.0)
+        )
 
     def __calculateTargetThickness(self):
         thickness = 0.0
@@ -245,4 +262,88 @@ class ImpactTestKernel():
         pickedCells = cells.getSequenceFromMask(mask=('[#1 ]', ), )
         datums = part.datums
         part.PartitionCellByDatumPlane(datumPlane=datums[7], cells=pickedCells)
+
+    def __encastreTargetSides(self):
+        assembly = mdb.models['Model-1'].rootAssembly
+        faces = []
+        for layer in self.assemblyOrder:
+            name = layer[0]
+            faces.append(assembly.instances[name].faces.getSequenceFromMask(
+                    mask=(
+                        '[#204 ]',
+                    ),
+                )
+            )
+        facesSet = faces[0]
+        for i in range(1, len(faces)):
+            facesSet = facesSet+faces[i]
+        region = assembly.Set(faces=facesSet, name='Target-sides')
+        mdb.models['Model-1'].EncastreBC(
+            name='Fix-sides',
+            createStepName='Initial',
+            region=region,
+            localCsys=None
+        )
+
+    def __applyProjectileVelocity(self):
+        assembly = mdb.models['Model-1'].rootAssembly
+        cells = assembly.instances['Core_'+self.projectileType].cells.getSequenceFromMask(
+            mask=(
+                '[#1 ]',
+            ),
+        )
+        cells = cells + assembly.instances['Casing_'+self.projectileType].cells.getSequenceFromMask(
+            mask=(
+                '[#1 ]',
+            ),
+        )
+        region = assembly.Set(
+            cells=cells,
+            name='Projectile-volume'
+        )
+        radians = self.targetObliquity*math.pi/180.0
+        velocityY = self.projectileVelocity*math.sin(radians)
+        velocityZ = -self.projectileVelocity*math.cos(radians)
+        mdb.models['Model-1'].Velocity(
+            name='Projectile-velocity',
+            region=region,
+            field='',
+            distributionType=MAGNITUDE,
+            velocity1=0.0,
+            velocity2=velocityY,
+            velocity3=velocityZ,
+            omega=0.0
+        )
+
+    def __applyInitialTemperature(self):
+        assembly = mdb.models['Model-1'].rootAssembly
+        cells = assembly.instances['Core_'+self.projectileType].cells.getSequenceFromMask(
+            mask=(
+                '[#1 ]',
+            ),
+        )
+        cells = cells + assembly.instances['Casing_'+self.projectileType].cells.getSequenceFromMask(
+            mask=(
+                '[#1 ]',
+            ),
+        )
+        for layer in self.assemblyOrder:
+            name = layer[0]
+            cells = cells + assembly.instances[name].cells.getSequenceFromMask(
+                mask=(
+                    '[#7 ]',
+                ),
+            )
+        region = assembly.Set(
+            cells=cells,
+            name='Entire-mass'
+        )
+        mdb.models['Model-1'].Temperature(
+            name='Temperature',
+            createStepName='Initial',
+            region=region,
+            distributionType=UNIFORM,
+            crossSectionDistribution=CONSTANT_THROUGH_THICKNESS,
+            magnitudes=(293.0, )
+        )
 
