@@ -102,3 +102,10 @@ ENV/
 
 # PyCharm stuff
 .idea/
+
+# Plugin-specific stuff
+Parts/
+*.sat
+Materials/
+*.lib
+*.cfg
