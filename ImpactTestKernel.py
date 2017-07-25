@@ -1,4 +1,6 @@
 import math
+import multiprocessing
+
 from abaqus import mdb, session
 import part, mesh
 from abaqusConstants import *
@@ -36,8 +38,8 @@ class ImpactTestKernel():
         self.setInteractions()
         self.applyInitialFields()
         self.applyBoundaryConditions()
-        self.adjustOutputs()
         self.createStep()
+        self.adjustOutputs()
         self.createJob()
 
     # Set absolute zero temperature and Stafan-Boltzmann constant
@@ -115,10 +117,10 @@ class ImpactTestKernel():
             axisDirection=axisDir,
             angle=self.targetObliquity
         )
-        # Translate projectile lower to compensate possible slipping/ricochet
+        # Translate projectile lower to compromise possible slipping/ricochet
         xyzOffset = (
             0.0,
-            -0.25 * self.targetRadius * math.sin(math.pi * self.targetObliquity / 180.0),
+            -0.1875 * self.targetRadius * math.sin(math.pi * self.targetObliquity / 180.0),
             0.0
         )
         assembly.translate(
@@ -126,17 +128,55 @@ class ImpactTestKernel():
             vector=xyzOffset
         )
 
-    # TODO: Create job for the model
+    # Create job for the model
     def createJob(self):
-        pass
+        # Allow use of multiple CPUs/cores
+        cpus=multiprocessing.cpu_count()
+        mdb.Job(
+            name='Impact',
+            model='Model-1',
+            description='',
+            type=ANALYSIS,
+            atTime=None,
+            waitMinutes=0,
+            waitHours=0,
+            queue=None,
+            memory=90,
+            memoryUnits=PERCENTAGE,
+            getMemoryFromAnalysis=True,
+            explicitPrecision=SINGLE,
+            nodalOutputPrecision=SINGLE,
+            echoPrint=OFF,
+            modelPrint=OFF,
+            contactPrint=OFF,
+            historyPrint=OFF,
+            userSubroutine='',
+            scratch='',
+            resultsFormat=ODB,
+            parallelizationMethodExplicit=DOMAIN,
+            numDomains=cpus,
+            activateLoadBalancing=False,
+            multiprocessingMode=DEFAULT,
+            numCpus=cpus
+        )
 
-    # TODO: Create simulation step for impact and penetration phase
+    # Create simulation step for impact and penetration phase
     def createStep(self):
-        pass
+        mdb.models['Model-1'].TempDisplacementDynamicsStep(
+            name='Impact',
+            previous='Initial',
+            timePeriod=self.__calculateTargetThickness()*10.0/self.projectileVelocity
+        )
 
-    # TODO: Create proper field/history output requests
+    # Create proper field/history output requests
     def adjustOutputs(self):
-        pass
+        mdb.models['Model-1'].historyOutputRequests['H-Output-1'].setValues(
+            numIntervals=1000
+        )
+        mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(
+            variables=('S', 'SVAVG', 'PE', 'PEVAVG', 'PEEQ', 'PEEQVAVG', 'LE', 'U', 'V', 'A', 'RF', 'CSTRESS', 'NT', 'HFL', 'RFL', 'EVF', 'STATUS'),
+            numIntervals=1000
+        )
 
     # Create appropriate boundary conditions for the model
     def applyBoundaryConditions(self):
