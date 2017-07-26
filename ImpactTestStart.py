@@ -350,21 +350,38 @@ def __importParts():
             # Open part file
             projectile = __dir + "\\Projectile.sat"
             projectile = mdb.openAcis(projectile)
-            # Create casing assuming it's ID in AcisFile is 2
+            # Open part configuration describing part material and ID in AcisFile
+            config = __dir + "\\elements.cfg"
+            config = json.load(open(config))
+            # Create casing and assign it material
             casing = mdb.models['Model-1'].PartFromGeometryFile(
                 "Casing_" + name,
                 projectile,
                 THREE_D,
                 DEFORMABLE_BODY,
-                bodyNum=2
+                bodyNum=config['casing']['id']
             )
-            # Create core assuming it's ID in AcisFile is 1
+            cells = casing.cells.getSequenceFromMask(mask=('[#1 ]', ), )
+            region = casing.Set(cells=cells, name='volume')
+            section = mdb.models['Model-1'].HomogeneousSolidSection("Casing_" + name, str(config['casing']['material']))
+            casing.SectionAssignment(
+                sectionName="Casing_" + name,
+                region=region,
+            )
+            # Create core and assign it material
             core = mdb.models['Model-1'].PartFromGeometryFile(
                 "Core_" + name,
                 projectile,
                 THREE_D,
                 DEFORMABLE_BODY,
-                bodyNum=1
+                bodyNum=config['core']['id']
+            )
+            cells = core.cells.getSequenceFromMask(mask=('[#1 ]', ), )
+            region = core.Set(cells=cells, name='volume')
+            section = mdb.models['Model-1'].HomogeneousSolidSection("Core_" + name, str(config['core']['material']))
+            core.SectionAssignment(
+                sectionName="Core_" + name,
+                region=region,
             )
             # Append subdirectory's name to available parts list
             availableParts.append(name)
