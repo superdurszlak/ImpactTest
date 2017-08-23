@@ -32,15 +32,14 @@ class ImpactTestKernel():
         self.createModelAssembly()
         self.createProjectileMesh()
         self.createTargetMesh()
-        self.createProjetileSurfaceSets()
-        self.createTargetSurfaceSets()
         self.createInteractionProperties()
         self.setInteractions()
         self.applyInitialFields()
         self.applyBoundaryConditions()
         self.createStep()
         self.adjustOutputs()
-        self.createJob()
+        self.createJobAndInput()
+        self.injectContactToInput()
 
     # Set absolute zero temperature and Stafan-Boltzmann constant
     def setModelConstants(self):
@@ -129,10 +128,10 @@ class ImpactTestKernel():
         )
 
     # Create job for the model
-    def createJob(self):
+    def createJobAndInput(self):
         # Allow use of multiple CPUs/cores
         cpus=multiprocessing.cpu_count()
-        mdb.Job(
+        job = mdb.Job(
             name='Impact',
             model='Model-1',
             description='',
@@ -159,6 +158,7 @@ class ImpactTestKernel():
             multiprocessingMode=DEFAULT,
             numCpus=cpus
         )
+        job.writeInput(consistencyChecking=OFF)
 
     # Create simulation step for impact and penetration phase
     def createStep(self):
@@ -187,22 +187,8 @@ class ImpactTestKernel():
         self.__applyProjectileVelocity()
         self.__applyInitialTemperature()
 
-    # TODO: Set proper interactions between target layers and projectile's core and casing
-    def setInteractions(self):
-        pass
-
     # TODO: Create proper interaction properties
     def createInteractionProperties(self):
-        pass
-
-    # TODO: Select inner and outer element faces separately for target layers
-    def createTargetSurfaceSets(self):
-        pass
-        # part.Surface(side2Faces=innerElementFaces, name="inner")
-        # part.Surface(side1Faces=outerElementFaces, name="outer")
-
-    # TODO: Select inner and outer element faces separately for projectile's core and casing
-    def createProjetileSurfaceSets(self):
         pass
 
     # Mesh each target layer
@@ -458,3 +444,32 @@ class ImpactTestKernel():
             # 293.15 [K] equals to 20 [*C]
             magnitudes=(293.15,)
         )
+
+    # Inject surface sets and set interactions between them - it's a workaround that will hopefully solve the problem
+    # with setting interior/exterior surface sets in Abaqus
+    def injectContactToInput(self):
+        lines = self.__obtainLines()
+        lines = self.__insertSurfaceSet(lines)
+        lines = self.__insertInteractions(lines)
+        self.__overrideInput(lines)
+        pass
+
+    # Load original input file and read its lines
+    def __obtainLines(self):
+        # TODO: Implement input file loading
+        pass
+
+    # Insert surface set definition to input file lines
+    def __insertSurfaceSet(self, lines):
+        # TODO: Implement surface set definition insertion
+        pass
+
+    # Insert interaction definition to input file lines
+    def __insertInteractions(self, lines):
+        # TODO: Implement interaction definition insertion
+        pass
+
+    # Override input file with modified lines
+    def __overrideInput(self, lines):
+        # TODO: Implement override input file
+        pass
