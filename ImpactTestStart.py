@@ -39,6 +39,8 @@ class ImpactTestGUI():
         self.armorObliquityLabel = ttk.Label(self.frame, text="Armor obliquity [deg]")
         self.modelMainLabel = ttk.Label(self.frame, text="Mesh")
         self.meshElementSize = ttk.Label(self.frame, text="Element size [mm]")
+        self.modelLabel = ttk.Label(self.frame, text="Model")
+        self.modelNameLabel = ttk.Label(self.frame, text="Model name")
         self.layerNoLabel = ttk.Label(self.layup, text="Layer")
         self.materialLabel = ttk.Label(self.layup, text="Material")
         self.layerThicknessLabel = ttk.Label(self.layup, text="Thickness [mm]")
@@ -51,6 +53,7 @@ class ImpactTestGUI():
         self.radius = StringVar()
         self.layersCount = StringVar()
         self.elementSize = StringVar()
+        self.modelName = StringVar()
         # Editable fields
         self.projectileField = ttk.Combobox(
             self.frame,
@@ -78,6 +81,10 @@ class ImpactTestGUI():
             values=range(1, 10),
             textvariable=self.layersCount,
             command=self.updateLayerList
+        )
+        self.modelNameField = ttk.Entry(
+            self.frame,
+            textvariable=self.modelName
         )
         self.layupWidgets = []
         # Configure
@@ -112,10 +119,14 @@ class ImpactTestGUI():
     # Proceed to model generation by plugin's kernel
     def proceed(self):
         config = self.prepareModelConfig()
+        # Set proper model name if nonexistent
+        modelName = self.modelName.get()
+        if not modelName:
+            modelName = "Model-1"
         # GUI isn't needed anymore
         self.master.destroy()
         # Run kernel
-        ImpactTestKernel(config).run()
+        ImpactTestKernel(config, modelName).run()
 
     # Save model's configuration to JSON-formatted file for later use
     def save(self):
@@ -241,6 +252,7 @@ class ImpactTestGUI():
         self.obliquityField.grid(column=1, row=5, sticky='NW')
         self.layersCountField.grid(column=1, row=6, sticky='NW')
         self.meshElementSizeField.grid(column=1, row=8, sticky='NW')
+        self.modelNameField.grid(column=1, row=9, sticky='NW')
 
     # Set labels' layout
     def configureLabels(self):
@@ -253,6 +265,8 @@ class ImpactTestGUI():
         self.armorLayersLabel.grid(column=0, row=6, sticky='NW')
         self.modelMainLabel.grid(column=0, row=7, sticky='NW')
         self.meshElementSize.grid(column=0, row=8, sticky='NW')
+        self.modelLabel.grid(column=0, row=9, sticky='NW')
+        self.modelNameLabel.grid(column=0, row=10, sticky='NW')
         self.layerNoLabel.grid(column=0, row=0, sticky='NW')
         self.materialLabel.grid(column=1, row=0, sticky='NW')
         self.layerThicknessLabel.grid(column=2, row=0, sticky='NW')
@@ -334,7 +348,7 @@ class ImpactTestGUI():
             row[3].set(thickness)
 
 # Import parts from Parts folder subdirectories
-def __importParts():
+def importParts(modelName="Model-1"):
     # Clear list of available parts
     del availableParts[:]
     # Make sure Parts directory exists or create one
@@ -354,7 +368,7 @@ def __importParts():
             config = __dir + "\\elements.cfg"
             config = json.load(open(config))
             # Create casing and assign it material
-            casing = mdb.models['Model-1'].PartFromGeometryFile(
+            casing = mdb.models[modelName].PartFromGeometryFile(
                 "Casing_" + name,
                 projectile,
                 THREE_D,
@@ -363,13 +377,13 @@ def __importParts():
             )
             cells = casing.cells.getSequenceFromMask(mask=('[#1 ]', ), )
             region = casing.Set(cells=cells, name='volume')
-            section = mdb.models['Model-1'].HomogeneousSolidSection("Casing_" + name, str(config['casing']['material']))
+            section = mdb.models[modelName].HomogeneousSolidSection("Casing_" + name, str(config['casing']['material']))
             casing.SectionAssignment(
                 sectionName="Casing_" + name,
                 region=region,
             )
             # Create core and assign it material
-            core = mdb.models['Model-1'].PartFromGeometryFile(
+            core = mdb.models[modelName].PartFromGeometryFile(
                 "Core_" + name,
                 projectile,
                 THREE_D,
@@ -378,7 +392,7 @@ def __importParts():
             )
             cells = core.cells.getSequenceFromMask(mask=('[#1 ]', ), )
             region = core.Set(cells=cells, name='volume')
-            section = mdb.models['Model-1'].HomogeneousSolidSection("Core_" + name, str(config['core']['material']))
+            section = mdb.models[modelName].HomogeneousSolidSection("Core_" + name, str(config['core']['material']))
             core.SectionAssignment(
                 sectionName="Core_" + name,
                 region=region,
@@ -387,7 +401,7 @@ def __importParts():
             availableParts.append(name)
 
 # Import materials to model
-def __importMaterials():
+def importMaterials(modelName ="Model-1"):
     # Make sure Materials directory exists
     __directory = os.path.dirname(os.path.realpath(__file__)) + "\\Materials\\"
     if not os.path.exists(__directory):
@@ -405,7 +419,7 @@ def __importMaterials():
             for (a, b, name, c, mat) in lib:
                 # Create materials from actual material datastrings
                 if b != -1:
-                    createMaterialFromDataString('Model-1', mat['Vendor material name'], mat['version'], mat['Data'])
+                    createMaterialFromDataString(modelName, mat['Vendor material name'], mat['version'], mat['Data'])
     return materials
 
 # Adjust Abaqus GUI to be less demanding and run plugin's GUI
@@ -420,6 +434,6 @@ def __startWindow():
 
 # Import materials, then parts, then create plugin's GUI window
 def run():
-    __importMaterials()
-    __importParts()
+    importMaterials()
+    importParts()
     __startWindow()

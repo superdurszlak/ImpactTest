@@ -1,5 +1,6 @@
 import math
 import multiprocessing
+import os
 
 from abaqus import mdb, session
 import part, mesh
@@ -7,9 +8,19 @@ from abaqusConstants import *
 import regionToolset
 
 
+
 class ImpactTestKernel():
     # Initialize impact test kernel basing on configuration passed
-    def __init__(self, config):
+    def __init__(self, config, modelName= "Model-1"):
+        # Model name - used both as model's name, job's name and input file name
+        self.modelName = modelName
+        # Create new model database if not default
+        if modelName != "Model-1":
+            mdb.Model(self.modelName)
+            # If model is other than default parts and materials must be imported again
+            from ImpactTestStart import importMaterials, importParts
+            importMaterials(self.modelName)
+            importParts(self.modelName)
         # Type of projectile - describing subdirectory name
         self.projectileType = str(config['projectile']['type'])
         # Projectile's velocity in [m/s]
@@ -33,7 +44,6 @@ class ImpactTestKernel():
         self.createProjectileMesh()
         self.createTargetMesh()
         self.createInteractionProperties()
-        self.setInteractions()
         self.applyInitialFields()
         self.applyBoundaryConditions()
         self.createStep()
@@ -43,7 +53,7 @@ class ImpactTestKernel():
 
     # Set absolute zero temperature and Stafan-Boltzmann constant
     def setModelConstants(self):
-        mdb.models['Model-1'].setValues(
+        mdb.models[self.modelName].setValues(
             # Temperatures will be treated as [K]
             absoluteZero=0,
             stefanBoltzmann=5.67037E-008
@@ -57,12 +67,12 @@ class ImpactTestKernel():
             # Provide uniform target layer naming convention
             name = 'Target-L' + str(i).zfill(3)
             # Create deformable, three dimensional solid from common target sketch
-            part = mdb.models['Model-1'].Part(name, dimensionality=THREE_D, type=DEFORMABLE_BODY)
-            part.BaseSolidExtrude(mdb.models['Model-1'].sketches['Target-Sketch'], layer['thickness'])
+            part = mdb.models[self.modelName].Part(name, dimensionality=THREE_D, type=DEFORMABLE_BODY)
+            part.BaseSolidExtrude(mdb.models[self.modelName].sketches['Target-Sketch'], layer['thickness'])
             part.DatumCsysByDefault(CARTESIAN)
             part.ReferencePoint(point=part.InterestingPoint(edge=part.edges[0], rule=CENTER))
             # Assign target layer its material
-            section = mdb.models['Model-1'].HomogeneousSolidSection(name, str(layer['material']))
+            section = mdb.models[self.modelName].HomogeneousSolidSection(name, str(layer['material']))
             part.SectionAssignment(
                 sectionName=name,
                 region=regionToolset.Region(
@@ -78,7 +88,7 @@ class ImpactTestKernel():
 
     # Create model assembly out of target layers and projectile core and casing
     def createModelAssembly(self):
-        assembly = mdb.models['Model-1'].rootAssembly
+        assembly = mdb.models[self.modelName].rootAssembly
         assembly.DatumCsysByDefault(CARTESIAN)
         offset = 0.0
         # Create instances of target layers placed one behind another
@@ -86,11 +96,11 @@ class ImpactTestKernel():
             name = element[0]
             thickness = element[1]
             offset -= thickness
-            part = mdb.models['Model-1'].parts[name]
+            part = mdb.models[self.modelName].parts[name]
             instance = assembly.Instance(name=name, part=part, dependent=ON)
             assembly.translate(instanceList=(name,), vector=(0.0, 0.0, offset))
-        core = mdb.models['Model-1'].parts['Core_' + str(self.projectileType)]
-        casing = mdb.models['Model-1'].parts['Casing_' + str(self.projectileType)]
+        core = mdb.models[self.modelName].parts['Core_' + str(self.projectileType)]
+        casing = mdb.models[self.modelName].parts['Casing_' + str(self.projectileType)]
         # Projectile offset preventing possible overlapping with target
         stdOffset = 0.005 - offset / math.cos(math.pi * self.targetObliquity / 180.0)
         xyzOffset = (
@@ -132,8 +142,8 @@ class ImpactTestKernel():
         # Allow use of multiple CPUs/cores
         cpus=multiprocessing.cpu_count()
         job = mdb.Job(
-            name='Impact',
-            model='Model-1',
+            name=self.modelName,
+            model=self.modelName,
             description='',
             type=ANALYSIS,
             atTime=None,
@@ -162,7 +172,7 @@ class ImpactTestKernel():
 
     # Create simulation step for impact and penetration phase
     def createStep(self):
-        mdb.models['Model-1'].TempDisplacementDynamicsStep(
+        mdb.models[self.modelName].TempDisplacementDynamicsStep(
             name='Impact',
             previous='Initial',
             timePeriod=self.__calculateTargetThickness()*10.0/self.projectileVelocity
@@ -170,10 +180,10 @@ class ImpactTestKernel():
 
     # Create proper field/history output requests
     def adjustOutputs(self):
-        mdb.models['Model-1'].historyOutputRequests['H-Output-1'].setValues(
+        mdb.models[self.modelName].historyOutputRequests['H-Output-1'].setValues(
             numIntervals=1000
         )
-        mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(
+        mdb.models[self.modelName].fieldOutputRequests['F-Output-1'].setValues(
             variables=('S', 'SVAVG', 'PE', 'PEVAVG', 'PEEQ', 'PEEQVAVG', 'LE', 'U', 'V', 'A', 'RF', 'CSTRESS', 'NT', 'HFL', 'RFL', 'EVF', 'STATUS'),
             numIntervals=1000
         )
@@ -195,7 +205,7 @@ class ImpactTestKernel():
     def createTargetMesh(self):
         for element in self.assemblyOrder:
             name = element[0]
-            part = mdb.models['Model-1'].parts[name]
+            part = mdb.models[self.modelName].parts[name]
             # Make outer, coarsely meshed region structured
             regions = part.cells.getSequenceFromMask(mask=('[#3 ]',), )
             part.setMeshControls(regions=regions, technique=STRUCTURED)
@@ -220,7 +230,7 @@ class ImpactTestKernel():
 
     # Mesh projectile's core and casing
     def createProjectileMesh(self):
-        core = mdb.models['Model-1'].parts['Core_' + str(self.projectileType)]
+        core = mdb.models[self.modelName].parts['Core_' + str(self.projectileType)]
         # Make projectile's core medial-axis swept
         corec = core.cells.getSequenceFromMask(mask=('[#1 ]',), )
         core.setMeshControls(regions=corec, algorithm=MEDIAL_AXIS)
@@ -243,7 +253,7 @@ class ImpactTestKernel():
         )
         # Mesh core
         core.generateMesh()
-        casing = mdb.models['Model-1'].parts['Casing_' + str(self.projectileType)]
+        casing = mdb.models[self.modelName].parts['Casing_' + str(self.projectileType)]
         # Make projectile's casing freely meshed with tetrahedral elements
         casingc = casing.cells.getSequenceFromMask(mask=('[#1 ]',), )
         casing.setMeshControls(regions=casingc, elemShape=TET, technique=FREE)
@@ -273,7 +283,7 @@ class ImpactTestKernel():
         # Stretch ratio reducing risk of projectile entering coarsely meshed area of target
         stretch = 1.0 / math.cos(radians)
         # Create elliptic target sketch
-        sketch = mdb.models['Model-1'].ConstrainedSketch('Target-Sketch', self.targetRadius * 2.0)
+        sketch = mdb.models[self.modelName].ConstrainedSketch('Target-Sketch', self.targetRadius * 2.0)
         sketch.EllipseByCenterPerimeter(
             center=(0.0, 0.0),
             axisPoint1=(0.0, self.targetRadius * stretch),
@@ -281,7 +291,7 @@ class ImpactTestKernel():
         )
         # Create elliptic target partition sketch
         innerRadius = self.targetRadius / 2.0
-        innerSketch = mdb.models['Model-1'].ConstrainedSketch('Inner-Sketch', innerRadius * 2.0)
+        innerSketch = mdb.models[self.modelName].ConstrainedSketch('Inner-Sketch', innerRadius * 2.0)
         innerSketch.EllipseByCenterPerimeter(
             center=(0.0, 0.0),
             axisPoint1=(0.0, innerRadius * stretch),
@@ -306,7 +316,7 @@ class ImpactTestKernel():
             origin=(0.0, 0.0, thickness)
         )
         # Map common sketch on target's face
-        sketch = mdb.models['Model-1'].ConstrainedSketch(
+        sketch = mdb.models[self.modelName].ConstrainedSketch(
             name='__profile__',
             sheetSize=self.targetRadius / 2.0,
             gridSpacing=0.001,
@@ -315,8 +325,8 @@ class ImpactTestKernel():
         sketch.sketchOptions.setValues(decimalPlaces=3)
         sketch.setPrimaryObject(option=SUPERIMPOSE)
         part.projectReferencesOntoSketch(sketch=sketch, filter=COPLANAR_EDGES)
-        part = mdb.models['Model-1'].parts[part.name]
-        sketch.retrieveSketch(sketch=mdb.models['Model-1'].sketches['Inner-Sketch'])
+        part = mdb.models[self.modelName].parts[part.name]
+        sketch.retrieveSketch(sketch=mdb.models[self.modelName].sketches['Inner-Sketch'])
         faces = part.faces
         pickedFaces = faces.getSequenceFromMask(mask=('[#2 ]',), )
         edges, datums = part.edges, part.datums
@@ -326,7 +336,7 @@ class ImpactTestKernel():
             sketch=sketch
         )
         sketch.unsetPrimaryObject()
-        del mdb.models['Model-1'].sketches['__profile__']
+        del mdb.models[self.modelName].sketches['__profile__']
         # Select target's cell to partition
         cells = part.cells
         pickedCells = cells.getSequenceFromMask(mask=('[#1 ]',), )
@@ -348,7 +358,7 @@ class ImpactTestKernel():
 
     # Create 'encastre' boundary condition on sides of each target layer
     def __encastreTargetSides(self):
-        assembly = mdb.models['Model-1'].rootAssembly
+        assembly = mdb.models[self.modelName].rootAssembly
         # Create list of selections
         faces = []
         for layer in self.assemblyOrder:
@@ -365,7 +375,7 @@ class ImpactTestKernel():
             facesSet = facesSet + faces[i]
         region = assembly.Set(faces=facesSet, name='Target-sides')
         # Create boundary condition
-        mdb.models['Model-1'].EncastreBC(
+        mdb.models[self.modelName].EncastreBC(
             name='Fix-sides',
             createStepName='Initial',
             region=region,
@@ -374,7 +384,7 @@ class ImpactTestKernel():
 
     # Create uniform velocity field on projectile
     def __applyProjectileVelocity(self):
-        assembly = mdb.models['Model-1'].rootAssembly
+        assembly = mdb.models[self.modelName].rootAssembly
         # Create selection out of casing's and core's cells
         cells = assembly.instances['Core_' + self.projectileType].cells.getSequenceFromMask(
             mask=(
@@ -397,7 +407,7 @@ class ImpactTestKernel():
         velocityY = self.projectileVelocity * math.sin(radians)
         velocityZ = -self.projectileVelocity * math.cos(radians)
         # Create velocity field
-        mdb.models['Model-1'].Velocity(
+        mdb.models[self.modelName].Velocity(
             name='Projectile-velocity',
             region=region,
             field='',
@@ -410,7 +420,7 @@ class ImpactTestKernel():
 
     # Create uniform temperature field on both target and projectile
     def __applyInitialTemperature(self):
-        assembly = mdb.models['Model-1'].rootAssembly
+        assembly = mdb.models[self.modelName].rootAssembly
         # Create selection out of target's and projectile's cells
         cells = assembly.instances['Core_' + self.projectileType].cells.getSequenceFromMask(
             mask=(
@@ -435,7 +445,7 @@ class ImpactTestKernel():
             name='Entire-mass'
         )
         # Create temperature field
-        mdb.models['Model-1'].Temperature(
+        mdb.models[self.modelName].Temperature(
             name='Temperature',
             createStepName='Initial',
             region=region,
@@ -448,28 +458,69 @@ class ImpactTestKernel():
     # Inject surface sets and set interactions between them - it's a workaround that will hopefully solve the problem
     # with setting interior/exterior surface sets in Abaqus
     def injectContactToInput(self):
-        lines = self.__obtainLines()
-        lines = self.__insertSurfaceSet(lines)
+        filename = self.__getInputFilename()
+        lines = self.__obtainLines(filename)
         lines = self.__insertInteractions(lines)
-        self.__overrideInput(lines)
+        lines = self.__insertSurfaceSet(lines)
+        self.__overrideInput(lines, filename)
         pass
 
     # Load original input file and read its lines
-    def __obtainLines(self):
-        # TODO: Implement input file loading
-        pass
+    def __obtainLines(self, filename):
+        with open(filename) as file:
+            lines = [line.strip('\n') for line in file.readlines()]
+            file.close()
+        return lines
 
     # Insert surface set definition to input file lines
     def __insertSurfaceSet(self, lines):
+        newlines = []
+        newlines.append('**')
+        newlines.append('** ELEMENT SURFACE SETS')
+        newlines.append('**')
+        for inst in mdb.models[self.modelName].rootAssembly.instances.values():
+            newlines.append('** %s' % inst.name)
+            newlines.append('** %s' % inst.name)
+        index = self.__getEndAssemblyIdx(lines)
+        lines[index:index] = newlines
         # TODO: Implement surface set definition insertion
-        pass
+        return lines
 
     # Insert interaction definition to input file lines
     def __insertInteractions(self, lines):
+        newlines = []
+        newlines.append('**')
+        newlines.append('** INTERACTIONS')
+        newlines.append('**')
+        index = self.__getLastMaterialConstantIdx(lines)
+        lines[index:index] = newlines
         # TODO: Implement interaction definition insertion
-        pass
+        return lines
 
     # Override input file with modified lines
-    def __overrideInput(self, lines):
-        # TODO: Implement override input file
-        pass
+    def __overrideInput(self, lines, filename):
+        with open(filename, 'w') as file:
+            for line in lines:
+                file.write("%s\n" % line)
+            file.close()
+        return
+
+    # Obtain input filename
+    def __getInputFilename(self):
+        fname = __file__
+        for i in range(0, 7):
+            fname = os.path.dirname(fname)
+        fname = fname + "/Commands/"+self.modelName+".inp"
+        return fname
+
+    # Obtain line index under which our properties should be inserted
+    def __getLastMaterialConstantIdx(self, lines):
+        for line in reversed(lines):
+            if line.startswith('Entire-mass'):
+                return lines.index(line) + 1
+
+    def __getEndAssemblyIdx(self, lines):
+        for line in reversed(lines):
+            if line.startswith('*End Assembly'):
+                return lines.index(line) - 1
+
