@@ -38,18 +38,21 @@ class ImpactTestKernel():
 
     # Perform all possible steps of model preparation
     def run(self):
+        self.adjustDisplacementsAtFailure()
         self.setModelConstants()
         self.createTargetParts()
         self.createModelAssembly()
+        self.createEmptySurfaceSets()
         self.createProjectileMesh()
         self.createTargetMesh()
         self.createInteractionProperties()
+        self.createInteractions()
         self.applyInitialFields()
         self.applyBoundaryConditions()
         self.createStep()
         self.adjustOutputs()
         self.createJobAndInput()
-        self.injectContactToInput()
+        # self.injectContactToInput()
 
     # Set absolute zero temperature and Stafan-Boltzmann constant
     def setModelConstants(self):
@@ -197,9 +200,18 @@ class ImpactTestKernel():
         self.__applyProjectileVelocity()
         self.__applyInitialTemperature()
 
-    # TODO: Create proper interaction properties
+    # Create common interaction properties assuming friction coefficient equal 0.05 and thermal conductivity equal 50
     def createInteractionProperties(self):
-        pass
+        mdb.models[self.modelName].ContactProperty('InteractionProperties')
+        mdb.models[self.modelName].interactionProperties['InteractionProperties'].TangentialBehavior(
+        formulation=PENALTY, directionality=ISOTROPIC, slipRateDependency=OFF,
+        pressureDependency=OFF, temperatureDependency=OFF, dependencies=0, table=((
+        0.05, ), ), shearStressLimit=None, maximumElasticSlip=FRACTION,
+        fraction=0.005, elasticSlipStiffness=None)
+        mdb.models[self.modelName].interactionProperties['InteractionProperties'].ThermalConductance(
+        definition=TABULAR, clearanceDependency=ON, pressureDependency=OFF,
+        temperatureDependencyC=OFF, massFlowRateDependencyC=OFF, dependenciesC=0,
+        clearanceDepTable=((50.0, 0.0), (0.0, 0.001)))
 
     # Mesh each target layer
     def createTargetMesh(self):
@@ -523,4 +535,35 @@ class ImpactTestKernel():
         for line in reversed(lines):
             if line.startswith('*End Assembly'):
                 return lines.index(line) - 1
+
+    def adjustDisplacementsAtFailure(self):
+        for material in mdb.models[self.modelName].materials.values():
+            if material.johnsonCookDamageInitiation is not None:
+                if material.johnsonCookDamageInitiation.damageEvolution is not None:
+                    strainAtFailure = material.johnsonCookDamageInitiation.damageEvolution.table[0][0]
+                    displacementAtFailure = strainAtFailure * self.meshElementSize
+                    material.johnsonCookDamageInitiation.damageEvolution.setValues(table=((displacementAtFailure, ),))
+        pass
+
+    # Create empty surface sets - they must be selected by the user
+    def createEmptySurfaceSets(self):
+        assembly = mdb.models[self.modelName].rootAssembly
+        assembly.SurfaceFromElsets(name="Interior", elementSetSeq=())
+        assembly.SurfaceFromElsets(name="Exterior", elementSetSeq=())
+
+    # Create interaction to handle contact between all mesh element faces
+    def createInteractions(self):
+        mdb.models[self.modelName].ContactExp(name='Contact', createStepName='Initial')
+        r11 = mdb.models[self.modelName].rootAssembly.surfaces['Exterior']
+        r21 = mdb.models[self.modelName].rootAssembly.surfaces['Exterior']
+        r22 = mdb.models[self.modelName].rootAssembly.surfaces['Interior']
+        r31 = mdb.models[self.modelName].rootAssembly.surfaces['Interior']
+        r32 = mdb.models[self.modelName].rootAssembly.surfaces['Exterior']
+        r41 = mdb.models[self.modelName].rootAssembly.surfaces['Interior']
+        mdb.models[self.modelName].interactions['Contact'].includedPairs.setValuesInStep(
+            stepName='Initial', useAllstar=OFF, addPairs=((r11, SELF), (r21, r22), (
+                r31, r32), (r41, SELF)))
+        mdb.models[self.modelName].interactions['Contact'].contactPropertyAssignments.appendInStep(
+            stepName='Initial', assignments=((GLOBAL, SELF, 'InteractionProperties'),
+                                             ))
 
