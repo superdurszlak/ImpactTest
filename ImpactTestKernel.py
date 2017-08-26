@@ -11,7 +11,7 @@ import regionToolset
 
 class ImpactTestKernel():
     # Initialize impact test kernel basing on configuration passed
-    def __init__(self, config, modelName= "Model-1"):
+    def __init__(self, config, modelName="Model-1"):
         # Model name - used both as model's name, job's name and input file name
         self.modelName = modelName
         # Create new model database if not default
@@ -21,6 +21,7 @@ class ImpactTestKernel():
             from ImpactTestStart import importMaterials, importParts
             importMaterials(self.modelName)
             importParts(self.modelName)
+            del mdb.models['Model-1']
         # Type of projectile - describing subdirectory name
         self.projectileType = str(config['projectile']['type'])
         # Projectile's velocity in [m/s]
@@ -42,19 +43,19 @@ class ImpactTestKernel():
         self.setModelConstants()
         self.createTargetParts()
         self.createModelAssembly()
-        self.createEmptySurfaceSets()
         self.createProjectileMesh()
         self.createTargetMesh()
+        self.createFakeSurfaceSets()
         self.createInteractionProperties()
         self.createInteractions()
         self.applyInitialFields()
         self.applyBoundaryConditions()
         self.createStep()
         self.adjustOutputs()
-        self.createJobAndInput()
+        self.createJob()
         # self.injectContactToInput()
 
-    # Set absolute zero temperature and Stafan-Boltzmann constant
+    # Set absolute zero temperature and Stefan-Boltzmann constant
     def setModelConstants(self):
         mdb.models[self.modelName].setValues(
             # Temperatures will be treated as [K]
@@ -70,24 +71,49 @@ class ImpactTestKernel():
             # Provide uniform target layer naming convention
             name = 'Target-L' + str(i).zfill(3)
             # Create deformable, three dimensional solid from common target sketch
-            part = mdb.models[self.modelName].Part(name, dimensionality=THREE_D, type=DEFORMABLE_BODY)
-            part.BaseSolidExtrude(mdb.models[self.modelName].sketches['Target-Sketch'], layer['thickness'])
+            part = mdb.models[self.modelName].Part(
+                name,
+                dimensionality=THREE_D,
+                type=DEFORMABLE_BODY)
+            part.BaseSolidExtrude(
+                mdb.models[self.modelName].sketches['Target-Sketch'],
+                layer['thickness']
+            )
             part.DatumCsysByDefault(CARTESIAN)
-            part.ReferencePoint(point=part.InterestingPoint(edge=part.edges[0], rule=CENTER))
+            part.ReferencePoint(
+                point=part.InterestingPoint(
+                    edge=part.edges[0],
+                    rule=CENTER
+                )
+            )
             # Assign target layer its material
-            section = mdb.models[self.modelName].HomogeneousSolidSection(name, str(layer['material']))
+            section = mdb.models[self.modelName].HomogeneousSolidSection(
+                name,
+                str(layer['material'])
+            )
             part.SectionAssignment(
                 sectionName=name,
                 region=regionToolset.Region(
                     cells=part.cells.getSequenceFromMask(
-                        mask=('[#1 ]',),
+                        mask=
+                        (
+                            '[#1 ]',
+                        ),
                     )
                 )
             )
             i += 1
             # Add layer name and thickness to auxiliary layer list
-            self.assemblyOrder.append((name, layer['thickness']))
-            self.__partitionTargetLayer(part, layer['thickness'])
+            self.assemblyOrder.append(
+                (
+                    name,
+                    layer['thickness']
+                )
+            )
+            self.__partitionTargetLayer(
+                part,
+                layer['thickness']
+            )
 
     # Create model assembly out of target layers and projectile core and casing
     def createModelAssembly(self):
@@ -100,8 +126,23 @@ class ImpactTestKernel():
             thickness = element[1]
             offset -= thickness
             part = mdb.models[self.modelName].parts[name]
-            instance = assembly.Instance(name=name, part=part, dependent=ON)
-            assembly.translate(instanceList=(name,), vector=(0.0, 0.0, offset))
+            instance = assembly.Instance(
+                name=name,
+                part=part,
+                dependent=ON
+            )
+            assembly.translate(
+                instanceList=
+                (
+                    name,
+                ),
+                vector=
+                (
+                    0.0,
+                    0.0,
+                    offset
+                )
+            )
         core = mdb.models[self.modelName].parts['Core_' + str(self.projectileType)]
         casing = mdb.models[self.modelName].parts['Casing_' + str(self.projectileType)]
         # Projectile offset preventing possible overlapping with target
@@ -112,19 +153,39 @@ class ImpactTestKernel():
             stdOffset
         )
         # Projectile's center of rotation placed in the middle of target's thickness
-        axisPt = (0.0, 0.0, offset / 2.0)
-        axisDir = (1.0, 0.0, 0.0)
+        axisPt = (
+            0.0,
+            0.0,
+            offset / 2.0
+        )
+        axisDir = (
+            1.0,
+            0.0,
+            0.0
+        )
         # Create instances of projectile casing and core
         for part in (core, casing):
-            assembly.Instance(name=part.name, part=part, dependent=ON)
+            assembly.Instance(
+                name=part.name,
+                part=part,
+                dependent=ON
+            )
         # Translate projectile away from the target
         assembly.translate(
-            instanceList=(core.name, casing.name),
+            instanceList=
+            (
+                core.name,
+                casing.name
+            ),
             vector=xyzOffset
         )
         # Rotate projectile to introduce target's obliquity
         assembly.rotate(
-            instanceList=(core.name, casing.name),
+            instanceList=
+            (
+                core.name,
+                casing.name
+            ),
             axisPoint=axisPt,
             axisDirection=axisDir,
             angle=self.targetObliquity
@@ -136,12 +197,16 @@ class ImpactTestKernel():
             0.0
         )
         assembly.translate(
-            instanceList=(core.name, casing.name),
+            instanceList=
+            (
+                core.name,
+                casing.name
+            ),
             vector=xyzOffset
         )
 
     # Create job for the model
-    def createJobAndInput(self):
+    def createJob(self):
         # Allow use of multiple CPUs/cores
         cpus=multiprocessing.cpu_count()
         job = mdb.Job(
@@ -187,7 +252,26 @@ class ImpactTestKernel():
             numIntervals=1000
         )
         mdb.models[self.modelName].fieldOutputRequests['F-Output-1'].setValues(
-            variables=('S', 'SVAVG', 'PE', 'PEVAVG', 'PEEQ', 'PEEQVAVG', 'LE', 'U', 'V', 'A', 'RF', 'CSTRESS', 'NT', 'HFL', 'RFL', 'EVF', 'STATUS'),
+            variables=(
+                'S',
+                'SVAVG',
+                'PE',
+                'PEVAVG',
+                'PEEQ',
+                'PEEQVAVG',
+                'LE',
+                'U',
+                'V',
+                'A',
+                'RF',
+                'CSTRESS',
+                'NT',
+                'HFL',
+                'RFL',
+                'EVF',
+                'STATUS',
+                'SDEG'
+            ),
             numIntervals=1000
         )
 
@@ -200,18 +284,45 @@ class ImpactTestKernel():
         self.__applyProjectileVelocity()
         self.__applyInitialTemperature()
 
-    # Create common interaction properties assuming friction coefficient equal 0.05 and thermal conductivity equal 50
+    # Create common interaction properties assuming friction coefficient equal 0.05 [-] and thermal conductivity
+    # equal 50 [W/(m*K)]
     def createInteractionProperties(self):
         mdb.models[self.modelName].ContactProperty('InteractionProperties')
         mdb.models[self.modelName].interactionProperties['InteractionProperties'].TangentialBehavior(
-        formulation=PENALTY, directionality=ISOTROPIC, slipRateDependency=OFF,
-        pressureDependency=OFF, temperatureDependency=OFF, dependencies=0, table=((
-        0.05, ), ), shearStressLimit=None, maximumElasticSlip=FRACTION,
-        fraction=0.005, elasticSlipStiffness=None)
+            formulation=PENALTY,
+            directionality=ISOTROPIC,
+            slipRateDependency=OFF,
+            pressureDependency=OFF,
+            temperatureDependency=OFF,
+            dependencies=0,
+            table=(
+                (
+                    0.05,
+                ),
+            ),
+            shearStressLimit=None,
+            maximumElasticSlip=FRACTION,
+            fraction=0.005,
+            elasticSlipStiffness=None
+        )
         mdb.models[self.modelName].interactionProperties['InteractionProperties'].ThermalConductance(
-        definition=TABULAR, clearanceDependency=ON, pressureDependency=OFF,
-        temperatureDependencyC=OFF, massFlowRateDependencyC=OFF, dependenciesC=0,
-        clearanceDepTable=((50.0, 0.0), (0.0, 0.001)))
+            definition=TABULAR,
+            clearanceDependency=ON,
+            pressureDependency=OFF,
+            temperatureDependencyC=OFF,
+            massFlowRateDependencyC=OFF,
+            dependenciesC=0,
+            clearanceDepTable=(
+                (
+                    50.0,
+                    0.0
+                ),
+                (
+                    0.0,
+                    0.001
+                )
+            )
+        )
 
     # Mesh each target layer
     def createTargetMesh(self):
@@ -219,24 +330,74 @@ class ImpactTestKernel():
             name = element[0]
             part = mdb.models[self.modelName].parts[name]
             # Make outer, coarsely meshed region structured
-            regions = part.cells.getSequenceFromMask(mask=('[#3 ]',), )
-            part.setMeshControls(regions=regions, technique=STRUCTURED)
+            regions = part.cells.getSequenceFromMask(
+                mask=
+                (
+                    '[#3 ]',
+                ),
+            )
+            part.setMeshControls(
+                regions=regions,
+                technique=STRUCTURED
+            )
             # Make inner, finely meshed region medial-axis swept
-            regions = part.cells.getSequenceFromMask(mask=('[#4 ]',), )
-            part.setMeshControls(regions=regions, algorithm=MEDIAL_AXIS)
+            regions = part.cells.getSequenceFromMask(
+                mask=
+                (
+                    '[#4 ]',
+                ),
+            )
+            part.setMeshControls(
+                regions=regions,
+                algorithm=MEDIAL_AXIS
+            )
             # Seed part with default element size
-            part.seedPart(size=self.meshElementSize, deviationFactor=0.1, minSizeFactor=0.1)
+            part.seedPart(
+                size=self.meshElementSize,
+                deviationFactor=0.1,
+                minSizeFactor=0.1
+            )
             # Let outer edge consist of low number of nodes
-            edges = part.edges.getSequenceFromMask(mask=('[#9300 ]',), )
-            part.seedEdgeByNumber(edges=edges, number=30)
+            edges = part.edges.getSequenceFromMask(
+                mask=
+                (
+                    '[#9300 ]',
+                ),
+            )
+            part.seedEdgeByNumber(
+                edges=edges,
+                number=30
+            )
             # Let outer target region be less densely meshed
-            edges = part.edges.getSequenceFromMask(mask=('[#55 ]',), )
-            part.seedEdgeBySize(edges=edges, size=self.meshElementSize * 20.0, deviationFactor=0.1)
+            edges = part.edges.getSequenceFromMask(
+                mask=
+                (
+                    '[#55 ]',
+                ),
+            )
+            part.seedEdgeBySize(
+                edges=edges,
+                size=self.meshElementSize * 20.0,
+                deviationFactor=0.1
+            )
             # Assign all target cells C3D8RT explicit element type with hourglass control and element deletion enabled
-            elemType1 = mesh.ElemType(elemCode=C3D8RT, elemLibrary=EXPLICIT,
-                                      kinematicSplit=AVERAGE_STRAIN, secondOrderAccuracy=OFF,
-                                      hourglassControl=ENHANCED, distortionControl=DEFAULT, elemDeletion=ON)
-            part.setElementType(regions=(part.cells,), elemTypes=(elemType1,))
+            elemType1 = mesh.ElemType(
+                elemCode=C3D8RT,
+                elemLibrary=EXPLICIT,
+                kinematicSplit=AVERAGE_STRAIN,
+                secondOrderAccuracy=OFF,
+                hourglassControl=ENHANCED,
+                distortionControl=DEFAULT,
+                elemDeletion=ON
+            )
+            part.setElementType(
+                regions=(
+                    part.cells,
+                ),
+                elemTypes=(
+                    elemType1,
+                )
+            )
             # Mesh part
             part.generateMesh()
 
@@ -244,13 +405,27 @@ class ImpactTestKernel():
     def createProjectileMesh(self):
         core = mdb.models[self.modelName].parts['Core_' + str(self.projectileType)]
         # Make projectile's core medial-axis swept
-        corec = core.cells.getSequenceFromMask(mask=('[#1 ]',), )
-        core.setMeshControls(regions=corec, algorithm=MEDIAL_AXIS)
+        corec = core.cells.getSequenceFromMask(
+            mask=
+            (
+                '[#1 ]',
+            ),
+        )
+        core.setMeshControls(
+            regions=corec,
+            algorithm=MEDIAL_AXIS
+        )
         # Seed core with default mesh element size
-        core.seedPart(size=self.meshElementSize, deviationFactor=0.1, minSizeFactor=0.1)
+        core.seedPart(
+            size=self.meshElementSize,
+            deviationFactor=0.1,
+            minSizeFactor=0.1
+        )
         # Assign core C3D8RT explicit element type with hourglass control
         core.setElementType(
-            regions=(corec,),
+            regions=(
+                corec,
+            ),
             elemTypes=(
                 mesh.ElemType(
                     elemCode=C3D8RT,
@@ -267,14 +442,31 @@ class ImpactTestKernel():
         core.generateMesh()
         casing = mdb.models[self.modelName].parts['Casing_' + str(self.projectileType)]
         # Make projectile's casing freely meshed with tetrahedral elements
-        casingc = casing.cells.getSequenceFromMask(mask=('[#1 ]',), )
-        casing.setMeshControls(regions=casingc, elemShape=TET, technique=FREE)
+        casingc = casing.cells.getSequenceFromMask(
+            mask=
+            (
+                '[#1 ]',
+            ),
+        )
+        casing.setMeshControls(
+            regions=casingc,
+            elemShape=TET,
+            technique=FREE
+        )
         # Seed casing with default element size (note that tip's elements will be considerably smaller!)
-        casing.seedPart(size=self.meshElementSize, deviationFactor=0.1, minSizeFactor=0.1)
+        casing.seedPart(
+            size=self.meshElementSize,
+            deviationFactor=0.1,
+            minSizeFactor=0.1
+        )
         # Assign casing C3D10MT explicit element type (second-order tetrahedral) with hourglass control
         casing.setElementType(
-            regions=(casingc,),
-            elemTypes=(
+            regions=
+            (
+                casingc,
+            ),
+            elemTypes=
+            (
                 mesh.ElemType(
                     elemCode=C3D10MT,
                     elemLibrary=EXPLICIT,
@@ -297,17 +489,44 @@ class ImpactTestKernel():
         # Create elliptic target sketch
         sketch = mdb.models[self.modelName].ConstrainedSketch('Target-Sketch', self.targetRadius * 2.0)
         sketch.EllipseByCenterPerimeter(
-            center=(0.0, 0.0),
-            axisPoint1=(0.0, self.targetRadius * stretch),
-            axisPoint2=(self.targetRadius, 0.0)
+            center=
+            (
+                0.0,
+                0.0
+            ),
+            axisPoint1=
+            (
+                0.0,
+                self.targetRadius * stretch
+            ),
+            axisPoint2=
+            (
+                self.targetRadius,
+                0.0
+            )
         )
         # Create elliptic target partition sketch
         innerRadius = self.targetRadius / 2.0
-        innerSketch = mdb.models[self.modelName].ConstrainedSketch('Inner-Sketch', innerRadius * 2.0)
+        innerSketch = mdb.models[self.modelName].ConstrainedSketch(
+            'Inner-Sketch',
+            innerRadius * 2.0
+        )
         innerSketch.EllipseByCenterPerimeter(
-            center=(0.0, 0.0),
-            axisPoint1=(0.0, innerRadius * stretch),
-            axisPoint2=(innerRadius, 0.0)
+            center=
+            (
+                0.0,
+                0.0
+            ),
+            axisPoint1=
+            (
+                0.0,
+                innerRadius * stretch
+            ),
+            axisPoint2=
+            (
+                innerRadius,
+                0.0
+            )
         )
 
     # Combine thicknesses of all target layers
@@ -325,7 +544,12 @@ class ImpactTestKernel():
             sketchPlane=faces[1],
             sketchUpEdge=datums[2].axis2,
             sketchPlaneSide=SIDE1,
-            origin=(0.0, 0.0, thickness)
+            origin=
+            (
+                0.0,
+                0.0,
+                thickness
+            )
         )
         # Map common sketch on target's face
         sketch = mdb.models[self.modelName].ConstrainedSketch(
@@ -334,13 +558,27 @@ class ImpactTestKernel():
             gridSpacing=0.001,
             transform=transform
         )
-        sketch.sketchOptions.setValues(decimalPlaces=3)
-        sketch.setPrimaryObject(option=SUPERIMPOSE)
-        part.projectReferencesOntoSketch(sketch=sketch, filter=COPLANAR_EDGES)
+        sketch.sketchOptions.setValues(
+            decimalPlaces=3
+        )
+        sketch.setPrimaryObject(
+            option=SUPERIMPOSE
+        )
+        part.projectReferencesOntoSketch(
+            sketch=sketch,
+            filter=COPLANAR_EDGES
+        )
         part = mdb.models[self.modelName].parts[part.name]
-        sketch.retrieveSketch(sketch=mdb.models[self.modelName].sketches['Inner-Sketch'])
+        sketch.retrieveSketch(
+            sketch=mdb.models[self.modelName].sketches['Inner-Sketch']
+        )
         faces = part.faces
-        pickedFaces = faces.getSequenceFromMask(mask=('[#2 ]',), )
+        pickedFaces = faces.getSequenceFromMask(
+            mask=
+            (
+                '[#2 ]',
+            ),
+        )
         edges, datums = part.edges, part.datums
         part.PartitionFaceBySketch(
             sketchUpEdge=datums[2].axis2,
@@ -351,7 +589,12 @@ class ImpactTestKernel():
         del mdb.models[self.modelName].sketches['__profile__']
         # Select target's cell to partition
         cells = part.cells
-        pickedCells = cells.getSequenceFromMask(mask=('[#1 ]',), )
+        pickedCells = cells.getSequenceFromMask(
+            mask=
+            (
+                '[#1 ]',
+            ),
+        )
         edges, datums = part.edges, part.datums
         pickedEdges = (edges[1],)
         # Partition target to create inner cell
@@ -362,11 +605,22 @@ class ImpactTestKernel():
             sense=REVERSE
         )
         # Partition target's outer cell to allow hex swept meshing
-        part.DatumPlaneByPrincipalPlane(principalPlane=YZPLANE, offset=0.0)
+        part.DatumPlaneByPrincipalPlane(
+            principalPlane=YZPLANE,
+            offset=0.0
+        )
         cells = part.cells
-        pickedCells = cells.getSequenceFromMask(mask=('[#1 ]',), )
+        pickedCells = cells.getSequenceFromMask(
+            mask=
+            (
+                '[#1 ]',
+            ),
+        )
         datums = part.datums
-        part.PartitionCellByDatumPlane(datumPlane=datums[7], cells=pickedCells)
+        part.PartitionCellByDatumPlane(
+            datumPlane=datums[7],
+            cells=pickedCells
+        )
 
     # Create 'encastre' boundary condition on sides of each target layer
     def __encastreTargetSides(self):
@@ -376,7 +630,8 @@ class ImpactTestKernel():
         for layer in self.assemblyOrder:
             name = layer[0]
             faces.append(assembly.instances[name].faces.getSequenceFromMask(
-                mask=(
+                mask=
+                (
                     '[#204 ]',
                 ),
             )
@@ -385,7 +640,10 @@ class ImpactTestKernel():
         facesSet = faces[0]
         for i in range(1, len(faces)):
             facesSet = facesSet + faces[i]
-        region = assembly.Set(faces=facesSet, name='Target-sides')
+        region = assembly.Set(
+            faces=facesSet,
+            name='Target-sides'
+        )
         # Create boundary condition
         mdb.models[self.modelName].EncastreBC(
             name='Fix-sides',
@@ -399,12 +657,14 @@ class ImpactTestKernel():
         assembly = mdb.models[self.modelName].rootAssembly
         # Create selection out of casing's and core's cells
         cells = assembly.instances['Core_' + self.projectileType].cells.getSequenceFromMask(
-            mask=(
+            mask=
+            (
                 '[#1 ]',
             ),
         )
         cells = cells + assembly.instances['Casing_' + self.projectileType].cells.getSequenceFromMask(
-            mask=(
+            mask=
+            (
                 '[#1 ]',
             ),
         )
@@ -435,19 +695,22 @@ class ImpactTestKernel():
         assembly = mdb.models[self.modelName].rootAssembly
         # Create selection out of target's and projectile's cells
         cells = assembly.instances['Core_' + self.projectileType].cells.getSequenceFromMask(
-            mask=(
+            mask=
+            (
                 '[#1 ]',
             ),
         )
         cells = cells + assembly.instances['Casing_' + self.projectileType].cells.getSequenceFromMask(
-            mask=(
+            mask=
+            (
                 '[#1 ]',
             ),
         )
         for layer in self.assemblyOrder:
             name = layer[0]
             cells = cells + assembly.instances[name].cells.getSequenceFromMask(
-                mask=(
+                mask=
+                (
                     '[#7 ]',
                 ),
             )
@@ -464,18 +727,24 @@ class ImpactTestKernel():
             distributionType=UNIFORM,
             crossSectionDistribution=CONSTANT_THROUGH_THICKNESS,
             # 293.15 [K] equals to 20 [*C]
-            magnitudes=(293.15,)
+            magnitudes=
+            (
+                293.15,
+            )
         )
 
-    # Inject surface sets and set interactions between them - it's a workaround that will hopefully solve the problem
-    # with setting interior/exterior surface sets in Abaqus
+    # Write job input file, inject surface sets and set interactions between them - it's a workaround that will
+    # hopefully solve the problem with setting interior/exterior surface sets in Abaqus
     def injectContactToInput(self):
+        job = mdb.models[self.modelName].jobs[self.modelName]
+        job.writeInput(
+            consistencyChecking=OFF
+        )
         filename = self.__getInputFilename()
         lines = self.__obtainLines(filename)
         lines = self.__insertInteractions(lines)
         lines = self.__insertSurfaceSet(lines)
         self.__overrideInput(lines, filename)
-        pass
 
     # Load original input file and read its lines
     def __obtainLines(self, filename):
@@ -531,29 +800,78 @@ class ImpactTestKernel():
             if line.startswith('Entire-mass'):
                 return lines.index(line) + 1
 
+    # Find index of the line after '*End Assembly [...]' line
     def __getEndAssemblyIdx(self, lines):
         for line in reversed(lines):
             if line.startswith('*End Assembly'):
                 return lines.index(line) - 1
 
+    # Adjust materials' displacement criterion for J-C damage evolution to element's size
     def adjustDisplacementsAtFailure(self):
         for material in mdb.models[self.modelName].materials.values():
             if material.johnsonCookDamageInitiation is not None:
                 if material.johnsonCookDamageInitiation.damageEvolution is not None:
                     strainAtFailure = material.johnsonCookDamageInitiation.damageEvolution.table[0][0]
                     displacementAtFailure = strainAtFailure * self.meshElementSize
-                    material.johnsonCookDamageInitiation.damageEvolution.setValues(table=((displacementAtFailure, ),))
-        pass
+                    material.johnsonCookDamageInitiation.damageEvolution.setValues(
+                        table=
+                        (
+                            (
+                                displacementAtFailure,
+                            ),
+                        )
+                    )
 
-    # Create empty surface sets - they must be selected by the user
-    def createEmptySurfaceSets(self):
+    # Create fake surface sets - they must be reselected by the user
+    def createFakeSurfaceSets(self):
+        # FIXME: Make Surface objects actually re-definable as mesh surfaces
         assembly = mdb.models[self.modelName].rootAssembly
-        assembly.SurfaceFromElsets(name="Interior", elementSetSeq=())
-        assembly.SurfaceFromElsets(name="Exterior", elementSetSeq=())
+        faces = assembly.instances['Target-L001'].faces
+        faces = faces.getSequenceFromMask(
+            mask=
+            (
+                '[#400 ]',
+            ),
+        )
+        faceSet = assembly.Set(
+            faces=faces,
+            name='Fake-contact-set'
+        )
+        assembly.SurfaceFromElsets(
+            name="Interior",
+            elementSetSeq=
+            (
+                (
+                    faceSet,
+                    S1
+                ),
+                (
+                    faceSet,
+                    S2
+                )
+            )
+        )
+        assembly.SurfaceFromElsets(
+            name="Exterior",
+            elementSetSeq=
+            (
+                (
+                    faceSet,
+                    S1
+                ),
+                (
+                    faceSet,
+                    S2
+                )
+            )
+        )
 
     # Create interaction to handle contact between all mesh element faces
     def createInteractions(self):
-        mdb.models[self.modelName].ContactExp(name='Contact', createStepName='Initial')
+        mdb.models[self.modelName].ContactExp(
+            name='Contact',
+            createStepName='Initial'
+        )
         r11 = mdb.models[self.modelName].rootAssembly.surfaces['Exterior']
         r21 = mdb.models[self.modelName].rootAssembly.surfaces['Exterior']
         r22 = mdb.models[self.modelName].rootAssembly.surfaces['Interior']
@@ -561,9 +879,34 @@ class ImpactTestKernel():
         r32 = mdb.models[self.modelName].rootAssembly.surfaces['Exterior']
         r41 = mdb.models[self.modelName].rootAssembly.surfaces['Interior']
         mdb.models[self.modelName].interactions['Contact'].includedPairs.setValuesInStep(
-            stepName='Initial', useAllstar=OFF, addPairs=((r11, SELF), (r21, r22), (
-                r31, r32), (r41, SELF)))
+            stepName='Initial',
+            useAllstar=OFF,
+            addPairs=(
+                (
+                    r11,
+                    SELF
+                ),
+                (
+                    r21,
+                    r22
+                ),
+                (
+                    r31,
+                    r32
+                ),
+                (
+                    r41,
+                    SELF
+                )
+            )
+        )
         mdb.models[self.modelName].interactions['Contact'].contactPropertyAssignments.appendInStep(
-            stepName='Initial', assignments=((GLOBAL, SELF, 'InteractionProperties'),
-                                             ))
-
+            stepName='Initial',
+            assignments=(
+                (
+                    GLOBAL,
+                    SELF,
+                    'InteractionProperties'
+                ),
+            )
+        )

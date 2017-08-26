@@ -27,23 +27,71 @@ class ImpactTestGUI():
         self.PROCEED = Button(self.master)
         self.SAVE = Button(self.master)
         self.LOAD = Button(self.master)
-        self.frame = Frame(self.master, height=300)
-        self.layup = Frame(self.master, height=300)
+        self.frame = Frame(
+            self.master,
+            height=300
+        )
+        self.layup = Frame(
+            self.master,
+            height=300
+        )
         # Labels
-        self.projecileMainLabel = ttk.Label(self.frame, text="Projectile")
-        self.projectileLabel = ttk.Label(self.frame, text="Projectile type")
-        self.velocityLabel = ttk.Label(self.frame, text="Projectile velocity [m/s]")
-        self.armorMainLabel = ttk.Label(self.frame, text="Armor")
-        self.armorRadiusLabel = ttk.Label(self.frame, text="Armor plate radius [mm]")
-        self.armorLayersLabel = ttk.Label(self.frame, text="No. of armor layers")
-        self.armorObliquityLabel = ttk.Label(self.frame, text="Armor obliquity [deg]")
-        self.modelMainLabel = ttk.Label(self.frame, text="Mesh")
-        self.meshElementSize = ttk.Label(self.frame, text="Element size [mm]")
-        self.modelLabel = ttk.Label(self.frame, text="Model")
-        self.modelNameLabel = ttk.Label(self.frame, text="Model name")
-        self.layerNoLabel = ttk.Label(self.layup, text="Layer")
-        self.materialLabel = ttk.Label(self.layup, text="Material")
-        self.layerThicknessLabel = ttk.Label(self.layup, text="Thickness [mm]")
+        self.projecileMainLabel = ttk.Label(
+            self.frame,
+            text="Projectile"
+        )
+        self.projectileLabel = ttk.Label(
+            self.frame,
+            text="Projectile type"
+        )
+        self.velocityLabel = ttk.Label(
+            self.frame,
+            text="Projectile velocity [m/s]"
+        )
+        self.armorMainLabel = ttk.Label(
+            self.frame,
+            text="Armor"
+        )
+        self.armorRadiusLabel = ttk.Label(
+            self.frame,
+            text="Armor plate radius [mm]"
+        )
+        self.armorLayersLabel = ttk.Label(
+            self.frame,
+            text="No. of armor layers"
+        )
+        self.armorObliquityLabel = ttk.Label(
+            self.frame,
+            text="Armor obliquity [deg]"
+        )
+        self.modelMainLabel = ttk.Label(
+            self.frame,
+            text="Mesh"
+        )
+        self.meshElementSize = ttk.Label(
+            self.frame,
+            text="Element size [mm]"
+        )
+        self.modelLabel = ttk.Label(
+            self.frame,
+            text="Model"
+        )
+        self.modelNameLabel = ttk.Label(
+            self.frame,
+            text="Model name"
+        )
+        self.layerNoLabel = ttk.Label(
+            self.layup,
+            text="Layer"
+        )
+        self.materialLabel = ttk.Label(
+            self.layup,
+            text="Material"
+        )
+        self.layerThicknessLabel = ttk.Label(
+            self.layup,
+            text="Thickness [mm]"
+        )
         # Variables
         self.projectile = StringVar()
         self.projectileParts = [x for x in self.parts()]
@@ -104,17 +152,29 @@ class ImpactTestGUI():
         self.PROCEED['text'] = "Proceed"
         self.PROCEED['bg'] = "white"
         self.PROCEED['command'] = self.proceed
-        self.PROCEED.grid(column=2, row=2, sticky='SW')
+        self.PROCEED.grid(
+            column=2,
+            row=2,
+            sticky='SW'
+        )
         # SAVE button
         self.SAVE['text'] = "Save..."
         self.SAVE['bg'] = "white"
         self.SAVE['command'] = self.save
-        self.SAVE.grid(column=1, row=2, sticky='S')
+        self.SAVE.grid(
+            column=1,
+            row=2,
+            sticky='S'
+        )
         # LOAD button
         self.LOAD['text'] = "Load..."
         self.LOAD['bg'] = "white"
         self.LOAD['command'] = self.load
-        self.LOAD.grid(column=0, row=2, sticky='SE')
+        self.LOAD.grid(
+            column=0,
+            row=2,
+            sticky='SE'
+        )
 
     # Proceed to model generation by plugin's kernel
     def proceed(self):
@@ -136,7 +196,10 @@ class ImpactTestGUI():
             mode='wb',
             defaultextension='.cfg',
             filetypes=[
-                ('Configuration files', '.cfg')
+                (
+                    'Configuration files',
+                    '.cfg'
+                )
             ]
         )
         # Write configuration to file if selected
@@ -147,13 +210,21 @@ class ImpactTestGUI():
     # Load previously model configuration
     def load(self):
         opts = {
-            'filetypes': [('Configuration file', '.cfg')]
+            'filetypes': [
+                (
+                    'Configuration file',
+                    '.cfg'
+                )
+            ]
         }
         # Open file open dialog
         filename = tkFileDialog.askopenfilename(**opts)
         # Load configuration from file if any selected
         if filename != "":
-            file = open(filename, mode='r')
+            file = open(
+                filename,
+                mode='r'
+            )
             config = json.load(file)
             self.loadModelFromConfig(config)
 
@@ -189,17 +260,47 @@ class ImpactTestGUI():
     # Create controls for single layer
     def createLayupRow(self, idx):
         # Label
-        label = ttk.Label(self.layup, text=str(idx + 1))
-        label.grid(column=0, row=idx + 1, sticky='NW')
+        label = ttk.Label(
+            self.layup,
+            text=str(idx + 1)
+        )
+        label.grid(
+            column=0,
+            row=idx + 1,
+            sticky='NW'
+        )
         # Material
         matvar = StringVar()
-        material = ttk.Combobox(self.layup, textvariable=matvar, values=self.armorMaterials)
-        material.grid(column=1, row=idx + 1, sticky='NW')
+        material = ttk.Combobox(
+            self.layup,
+            textvariable=matvar,
+            values=self.armorMaterials
+        )
+        material.grid(
+            column=1,
+            row=idx + 1,
+            sticky='NW'
+        )
         # Thickness in [mm]
         thickvar = StringVar()
-        thickness = ttk.Entry(self.layup, textvariable=thickvar, validate="focusout", validatecommand=self.verifyFloats)
-        thickness.grid(column=2, row=idx + 1, sticky='NW')
-        tup = (label, matvar, material, thickvar, thickness)
+        thickness = ttk.Entry(
+            self.layup,
+            textvariable=thickvar,
+            validate="focusout",
+            validatecommand=self.verifyFloats
+        )
+        thickness.grid(
+            column=2,
+            row=idx + 1,
+            sticky='NW'
+        )
+        tup = (
+            label,
+            matvar,
+            material,
+            thickvar,
+            thickness
+        )
         self.layupWidgets.append(tup)
 
     # Yield loaded materials' names
@@ -211,15 +312,35 @@ class ImpactTestGUI():
     def verifyFloats(self):
         # Allow layers to be between 0.5 and 150.0 [mm] thick
         for (label, matvar, material, thickvar, thickness) in self.layupWidgets:
-            self.verifyStringVarFloat(thickvar, treshold=0.5, maximum=150.0)
+            self.verifyStringVarFloat(
+                thickvar,
+                treshold=0.5,
+                maximum=150.0
+            )
         # Allow target radius to be between 30.0 and 55.0 [mm]. Could be replaced with caliber-dependent radius
-        self.verifyStringVarFloat(self.radius, treshold=30.0, maximum=55.0)
+        self.verifyStringVarFloat(
+            self.radius,
+            treshold=30.0,
+            maximum=55.0
+        )
         # Allow target obliquity to be between 0 (normal) and 60 [deg]
-        self.verifyStringVarFloat(self.obliquity, treshold=0.0, maximum=60.0)
+        self.verifyStringVarFloat(
+            self.obliquity,
+            treshold=0.0,
+            maximum=60.0
+        )
         # Allow projectile initial velocity to be between 100.0 and 2000.0 [m/s]
-        self.verifyStringVarFloat(self.velocity, treshold=100.0, maximum=2000.0)
+        self.verifyStringVarFloat(
+            self.velocity,
+            treshold=100.0,
+            maximum=2000.0
+        )
         # Allow element size to be between 0.05 and 2.0 [mm]
-        self.verifyStringVarFloat(self.elementSize, treshold=0.05, maximum=2.0)
+        self.verifyStringVarFloat(
+            self.elementSize,
+            treshold=0.05,
+            maximum=2.0
+        )
 
     # Verify if StringVar's value is valid float and fits in limits
     def verifyStringVarFloat(self, strvar, treshold=0.0, maximum=None):
@@ -237,50 +358,150 @@ class ImpactTestGUI():
     # Set GUI title, layout, window size
     def configureAuxiliary(self):
         self.master.title("Armor impact menu")
-        self.master.columnconfigure(0, weight=1)
-        self.master.rowconfigure(0, weight=1)
-        self.frame.grid(row=0, column=1, sticky='NW')
-        self.layup.grid(row=1, column=1, sticky='NW')
+        self.master.columnconfigure(
+            0,
+            weight=1
+        )
+        self.master.rowconfigure(
+            0,
+            weight=1
+        )
+        self.frame.grid(
+            row=0,
+            column=1,
+            sticky='NW'
+        )
+        self.layup.grid(
+            row=1,
+            column=1,
+            sticky='NW'
+        )
         # Minimum window size
         self.master.minsize(400, 700)
 
     # Set entries' layout
     def configureEntries(self):
-        self.projectileField.grid(column=1, row=1, sticky='NW')
-        self.velocityField.grid(column=1, row=2, sticky='NW')
-        self.radiusField.grid(column=1, row=4, sticky='NW')
-        self.obliquityField.grid(column=1, row=5, sticky='NW')
-        self.layersCountField.grid(column=1, row=6, sticky='NW')
-        self.meshElementSizeField.grid(column=1, row=8, sticky='NW')
-        self.modelNameField.grid(column=1, row=9, sticky='NW')
+        self.projectileField.grid(
+            column=1,
+            row=1,
+            sticky='NW'
+        )
+        self.velocityField.grid(
+            column=1,
+            row=2,
+            sticky='NW'
+        )
+        self.radiusField.grid(
+            column=1,
+            row=4,
+            sticky='NW'
+        )
+        self.obliquityField.grid(
+            column=1,
+            row=5,
+            sticky='NW'
+        )
+        self.layersCountField.grid(
+            column=1,
+            row=6,
+            sticky='NW'
+        )
+        self.meshElementSizeField.grid(
+            column=1,
+            row=8,
+            sticky='NW'
+        )
+        self.modelNameField.grid(
+            column=1,
+            row=9,
+            sticky='NW'
+        )
 
     # Set labels' layout
     def configureLabels(self):
-        self.projecileMainLabel.grid(column=0, row=0, sticky='NW')
-        self.projectileLabel.grid(column=0, row=1, sticky='NW')
-        self.velocityLabel.grid(column=0, row=2, sticky='NW')
-        self.armorMainLabel.grid(column=0, row=3, sticky='NW')
-        self.armorRadiusLabel.grid(column=0, row=4, sticky='NW')
-        self.armorObliquityLabel.grid(column=0, row=5, sticky='NW')
-        self.armorLayersLabel.grid(column=0, row=6, sticky='NW')
-        self.modelMainLabel.grid(column=0, row=7, sticky='NW')
-        self.meshElementSize.grid(column=0, row=8, sticky='NW')
-        self.modelLabel.grid(column=0, row=9, sticky='NW')
-        self.modelNameLabel.grid(column=0, row=10, sticky='NW')
-        self.layerNoLabel.grid(column=0, row=0, sticky='NW')
-        self.materialLabel.grid(column=1, row=0, sticky='NW')
-        self.layerThicknessLabel.grid(column=2, row=0, sticky='NW')
+        self.projecileMainLabel.grid(
+            column=0,
+            row=0,
+            sticky='NW'
+        )
+        self.projectileLabel.grid(
+            column=0,
+            row=1,
+            sticky='NW'
+        )
+        self.velocityLabel.grid(
+            column=0,
+            row=2,
+            sticky='NW'
+        )
+        self.armorMainLabel.grid(
+            column=0,
+            row=3,
+            sticky='NW'
+        )
+        self.armorRadiusLabel.grid(
+            column=0,
+            row=4,
+            sticky='NW'
+        )
+        self.armorObliquityLabel.grid(
+            column=0,
+            row=5,
+            sticky='NW'
+        )
+        self.armorLayersLabel.grid(
+            column=0,
+            row=6,
+            sticky='NW'
+        )
+        self.modelMainLabel.grid(
+            column=0,
+            row=7,
+            sticky='NW'
+        )
+        self.meshElementSize.grid(
+            column=0,
+            row=8,
+            sticky='NW'
+        )
+        self.modelLabel.grid(
+            column=0,
+            row=9,
+            sticky='NW'
+        )
+        self.modelNameLabel.grid(
+            column=0,
+            row=10,
+            sticky='NW'
+        )
+        self.layerNoLabel.grid(
+            column=0,
+            row=0,
+            sticky='NW'
+        )
+        self.materialLabel.grid(
+            column=1,
+            row=0,
+            sticky='NW'
+        )
+        self.layerThicknessLabel.grid(
+            column=2,
+            row=0,
+            sticky='NW'
+        )
 
     # Generate model configuration object that may be both saved to file or passed to kernel
     def prepareModelConfig(self):
         config = {}
         layers = []
         for (label, matvar, material, thickvar, thickness) in self.layupWidgets:
-            layers.append({
+            layers.append(
+                {
                 'material': matvar.get(),
                 # Convert [mm] to [m]
                 'thickness': float(thickvar.get()) / 1000.0
-            })
+                }
+            )
         config['projectile'] = {
             'type': self.projectile.get(),
             # Leave [m/s] as-is
@@ -305,22 +526,49 @@ class ImpactTestGUI():
                     self.projectile.set(config['projectile'][u'type'])
             if 'velocity' in config['projectile']:
                 # Leave [m/s] as-is
-                self.velocity.set(round(float(config['projectile']['velocity']), 1))
+                self.velocity.set(
+                    round(
+                        float(
+                            config['projectile']['velocity']
+                        ),
+                        1)
+                )
         if 'armor' in config:
             if 'radius' in config['armor']:
                 # Convert [m] back to [mm]
-                self.radius.set(round(float(config[u'armor'][u'radius']) * 1000.0, 1))
+                self.radius.set(
+                    round(
+                        float(
+                            config[u'armor'][u'radius']
+                        ) * 1000.0,
+                        1
+                    )
+                )
             # Currently innerRadius value is ignored
             if 'innerRadius' in config['armor']:
                 pass
             if 'obliquity' in config['armor']:
                 # Leave [deg] as-is
-                self.obliquity.set(round(float(config['armor']['obliquity']), 1))
+                self.obliquity.set(
+                    round(
+                        float(
+                            config['armor']['obliquity']
+                        ),
+                        1
+                    )
+                )
             if 'layers' in config['armor']:
                 self.loadLayersFromConfig(config['armor']['layers'])
         if 'meshElementSize' in config:
             # Convert [m] back to [mm]
-            self.elementSize.set(round(float(config['meshElementSize']) * 1000.0, 3))
+            self.elementSize.set(
+                round(
+                    float(
+                        config['meshElementSize']
+                    ) * 1000.0,
+                    3
+                )
+            )
         self.verifyFloats()
 
     # Load target layers from config object section
@@ -340,7 +588,12 @@ class ImpactTestGUI():
                 material = layer['material']
             if 'thickness' in layer:
                 # Convert [m] to [mm]
-                thickness = round(float(layer['thickness']) * 1000.0, 2)
+                thickness = round(
+                    float(
+                        layer['thickness']
+                    ) * 1000.0,
+                    2
+                )
             row = self.layupWidgets[i]
             i += 1
             # Set StringVars to proper values
@@ -366,7 +619,9 @@ def importParts(modelName="Model-1"):
             projectile = mdb.openAcis(projectile)
             # Open part configuration describing part material and ID in AcisFile
             config = __dir + "\\elements.cfg"
-            config = json.load(open(config))
+            config = json.load(
+                open(config)
+            )
             # Create casing and assign it material
             casing = mdb.models[modelName].PartFromGeometryFile(
                 "Casing_" + name,
@@ -375,9 +630,20 @@ def importParts(modelName="Model-1"):
                 DEFORMABLE_BODY,
                 bodyNum=config['casing']['id']
             )
-            cells = casing.cells.getSequenceFromMask(mask=('[#1 ]', ), )
-            region = casing.Set(cells=cells, name='volume')
-            section = mdb.models[modelName].HomogeneousSolidSection("Casing_" + name, str(config['casing']['material']))
+            cells = casing.cells.getSequenceFromMask(
+                mask=
+                (
+                    '[#1 ]',
+                ),
+            )
+            region = casing.Set(
+                cells=cells,
+                name='volume'
+            )
+            section = mdb.models[modelName].HomogeneousSolidSection(
+                "Casing_" + name,
+                str(config['casing']['material'])
+            )
             casing.SectionAssignment(
                 sectionName="Casing_" + name,
                 region=region,
@@ -390,9 +656,20 @@ def importParts(modelName="Model-1"):
                 DEFORMABLE_BODY,
                 bodyNum=config['core']['id']
             )
-            cells = core.cells.getSequenceFromMask(mask=('[#1 ]', ), )
-            region = core.Set(cells=cells, name='volume')
-            section = mdb.models[modelName].HomogeneousSolidSection("Core_" + name, str(config['core']['material']))
+            cells = core.cells.getSequenceFromMask(
+                mask=
+                (
+                    '[#1 ]',
+                ),
+            )
+            region = core.Set(
+                cells=cells,
+                name='volume'
+            )
+            section = mdb.models[modelName].HomogeneousSolidSection(
+                "Core_" + name,
+                str(config['core']['material'])
+            )
             core.SectionAssignment(
                 sectionName="Core_" + name,
                 region=region,
@@ -412,14 +689,22 @@ def importMaterials(modelName ="Model-1"):
     for file in directory:
         # Import all materials from all material libraries
         if file.endswith(".lib"):
-            f = open(__directory + "\\" + file, 'r')
+            f = open(
+                __directory + "\\" + file,
+                'r'
+            )
             # Unpickle library file
             lib = Unpickler(f).load()
             f.close()
             for (a, b, name, c, mat) in lib:
                 # Create materials from actual material datastrings
                 if b != -1:
-                    createMaterialFromDataString(modelName, mat['Vendor material name'], mat['version'], mat['Data'])
+                    createMaterialFromDataString(
+                        modelName,
+                        mat['Vendor material name'],
+                        mat['version'],
+                        mat['Data']
+                    )
     return materials
 
 # Adjust Abaqus GUI to be less demanding and run plugin's GUI
