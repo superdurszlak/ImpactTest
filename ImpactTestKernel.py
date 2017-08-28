@@ -34,7 +34,7 @@ class ImpactTestKernel():
         self.targetLayers = config['armor']['layers']
         # Average mesh element size in [m] used to seed parts
         self.meshElementSize = config['meshElementSize']
-        # Auxilliary list to store layer names and thicknesses in [m]
+        # Auxilliary list to store layer names, thicknesses and spacings in [m]
         self.assemblyOrder = []
 
     # Perform all possible steps of model preparation
@@ -107,7 +107,8 @@ class ImpactTestKernel():
             self.assemblyOrder.append(
                 (
                     name,
-                    layer['thickness']
+                    layer['thickness'],
+                    layer['spacing']
                 )
             )
             self.__partitionTargetLayer(
@@ -120,11 +121,14 @@ class ImpactTestKernel():
         assembly = mdb.models[self.modelName].rootAssembly
         assembly.DatumCsysByDefault(CARTESIAN)
         offset = 0.0
+        previousSpacing = 0.0
         # Create instances of target layers placed one behind another
         for element in self.assemblyOrder:
             name = element[0]
             thickness = element[1]
-            offset -= thickness
+            spacing = element[2]
+            offset -= thickness + previousSpacing
+            verticalOffset = -math.sin(math.pi * self.targetObliquity / 180.0) * offset
             part = mdb.models[self.modelName].parts[name]
             instance = assembly.Instance(
                 name=name,
@@ -139,24 +143,26 @@ class ImpactTestKernel():
                 vector=
                 (
                     0.0,
-                    0.0,
+                    verticalOffset,
                     offset
                 )
             )
+            previousSpacing = spacing
         core = mdb.models[self.modelName].parts['Core_' + str(self.projectileType)]
         casing = mdb.models[self.modelName].parts['Casing_' + str(self.projectileType)]
+        offset = self.assemblyOrder[0][1]
         # Projectile offset preventing possible overlapping with target
-        stdOffset = 0.005 - offset / math.cos(math.pi * self.targetObliquity / 180.0)
+        stdOffset = 0.005 + offset / math.cos(math.pi * self.targetObliquity / 180.0)
         xyzOffset = (
             0.0,
             0.0,
             stdOffset
         )
-        # Projectile's center of rotation placed in the middle of target's thickness
+        # Projectile's center of rotation placed in the middle of target's first layer's thickness
         axisPt = (
             0.0,
             0.0,
-            offset / 2.0
+            -offset / 2.0
         )
         axisDir = (
             1.0,

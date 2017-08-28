@@ -92,6 +92,10 @@ class ImpactTestGUI():
             self.layup,
             text="Thickness [mm]"
         )
+        self.layerSpacingLabel = ttk.Label(
+            self.layup,
+            text="Space behind layer [mm]"
+        )
         # Variables
         self.projectile = StringVar()
         self.projectileParts = [x for x in self.parts()]
@@ -294,12 +298,26 @@ class ImpactTestGUI():
             row=idx + 1,
             sticky='NW'
         )
+        spacevar = StringVar()
+        spacing = ttk.Entry(
+            self.layup,
+            textvariable=spacevar,
+            validate="focusout",
+            validatecommand=self.verifyFloats
+        )
+        spacing.grid(
+            column=3,
+            row=idx + 1,
+            sticky='NW'
+        )
         tup = (
             label,
             matvar,
             material,
             thickvar,
-            thickness
+            thickness,
+            spacevar,
+            spacing
         )
         self.layupWidgets.append(tup)
 
@@ -311,11 +329,16 @@ class ImpactTestGUI():
     # Check floats in editable fields for validity
     def verifyFloats(self):
         # Allow layers to be between 0.5 and 150.0 [mm] thick
-        for (label, matvar, material, thickvar, thickness) in self.layupWidgets:
+        for (label, matvar, material, thickvar, thickness, spacevar, spacing) in self.layupWidgets:
             self.verifyStringVarFloat(
                 thickvar,
                 treshold=0.5,
                 maximum=150.0
+            )
+            self.verifyStringVarFloat(
+                spacevar,
+                treshold=0.0,
+                maximum=100.0
             )
         # Allow target radius to be between 30.0 and 55.0 [mm]. Could be replaced with caliber-dependent radius
         self.verifyStringVarFloat(
@@ -489,17 +512,23 @@ class ImpactTestGUI():
             row=0,
             sticky='NW'
         )
+        self.layerSpacingLabel.grid(
+            column=3,
+            row=0,
+            sticky='NW'
+        )
 
     # Generate model configuration object that may be both saved to file or passed to kernel
     def prepareModelConfig(self):
         config = {}
         layers = []
-        for (label, matvar, material, thickvar, thickness) in self.layupWidgets:
+        for (label, matvar, material, thickvar, thickness, spacevar, spacing) in self.layupWidgets:
             layers.append(
                 {
                 'material': matvar.get(),
                 # Convert [mm] to [m]
-                'thickness': float(thickvar.get()) / 1000.0
+                'thickness': float(thickvar.get()) / 1000.0,
+                'spacing': float(spacevar.get()) / 1000.0
                 }
             )
         config['projectile'] = {
@@ -594,11 +623,20 @@ class ImpactTestGUI():
                     ) * 1000.0,
                     2
                 )
+            if 'spacing' in layer:
+                # Convert [m] to [mm]
+                spacing = round(
+                    float(
+                        layer['spacing']
+                    ) * 1000,
+                    2
+                )
             row = self.layupWidgets[i]
             i += 1
             # Set StringVars to proper values
             row[1].set(material)
             row[3].set(thickness)
+            row[5].set(spacing)
 
 # Import parts from Parts folder subdirectories
 def importParts(modelName="Model-1"):
