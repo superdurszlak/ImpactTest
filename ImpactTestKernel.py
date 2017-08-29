@@ -152,7 +152,7 @@ class ImpactTestKernel():
         casing = mdb.models[self.modelName].parts['Casing_' + str(self.projectileType)]
         offset = self.assemblyOrder[0][1]
         # Projectile offset preventing possible overlapping with target
-        stdOffset = 0.005 + offset / math.cos(math.pi * self.targetObliquity / 180.0)
+        stdOffset = 0.0005 + offset / math.cos(math.pi * self.targetObliquity / 180.0)
         xyzOffset = (
             0.0,
             0.0,
@@ -394,7 +394,8 @@ class ImpactTestKernel():
                 secondOrderAccuracy=OFF,
                 hourglassControl=ENHANCED,
                 distortionControl=DEFAULT,
-                elemDeletion=ON
+                elemDeletion=ON,
+                # maxDegradation=0.95
             )
             part.setElementType(
                 regions=(
@@ -440,7 +441,8 @@ class ImpactTestKernel():
                     secondOrderAccuracy=OFF,
                     hourglassControl=ENHANCED,
                     distortionControl=DEFAULT,
-                    elemDeletion=OFF
+                    elemDeletion=ON,
+                    # maxDegradation=0.95
                 ),
             )
         )
@@ -474,12 +476,11 @@ class ImpactTestKernel():
             elemTypes=
             (
                 mesh.ElemType(
-                    elemCode=C3D10MT,
+                    elemCode=C3D4T,
                     elemLibrary=EXPLICIT,
                     secondOrderAccuracy=OFF,
-                    hourglassControl=ENHANCED,
-                    distortionControl=DEFAULT,
-                    elemDeletion=OFF
+                    elemDeletion=ON,
+                    # maxDegradation=0.95
                 ),
             )
         )
@@ -844,7 +845,21 @@ class ImpactTestKernel():
             name='Fake-contact-set'
         )
         assembly.SurfaceFromElsets(
-            name="Interior",
+            name="Interior-Brown",
+            elementSetSeq=
+            (
+                (
+                    faceSet,
+                    S1
+                ),
+                (
+                    faceSet,
+                    S2
+                )
+            )
+        )
+        assembly.SurfaceFromElsets(
+            name="Interior-Purple",
             elementSetSeq=
             (
                 (
@@ -878,30 +893,39 @@ class ImpactTestKernel():
             name='Contact',
             createStepName='Initial'
         )
-        r11 = mdb.models[self.modelName].rootAssembly.surfaces['Exterior']
-        r21 = mdb.models[self.modelName].rootAssembly.surfaces['Exterior']
-        r22 = mdb.models[self.modelName].rootAssembly.surfaces['Interior']
-        r31 = mdb.models[self.modelName].rootAssembly.surfaces['Interior']
-        r32 = mdb.models[self.modelName].rootAssembly.surfaces['Exterior']
-        r41 = mdb.models[self.modelName].rootAssembly.surfaces['Interior']
+        ext = mdb.models[self.modelName].rootAssembly.surfaces['Exterior']
+        inb = mdb.models[self.modelName].rootAssembly.surfaces['Interior-Brown']
+        inp = mdb.models[self.modelName].rootAssembly.surfaces['Interior-Purple']
         mdb.models[self.modelName].interactions['Contact'].includedPairs.setValuesInStep(
             stepName='Initial',
             useAllstar=OFF,
             addPairs=(
                 (
-                    r11,
+                    ext,
                     SELF
                 ),
                 (
-                    r21,
-                    r22
+                    ext,
+                    inb
                 ),
                 (
-                    r31,
-                    r32
+                    inb,
+                    ext
                 ),
                 (
-                    r41,
+                    inp,
+                    SELF
+                ),
+                (
+                    inb,
+                    inp
+                ),
+                (
+                    inp,
+                    inb
+                ),
+                (
+                    inp,
                     SELF
                 )
             )
