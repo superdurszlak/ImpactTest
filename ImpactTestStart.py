@@ -116,23 +116,23 @@ class ImpactTestGUI():
             self.frame,
             textvariable=self.velocity, validate="focusout", validatecommand=self.verifyFloats
         )
-        self.obliquityField = ttk.Entry(
-            self.frame,
-            textvariable=self.obliquity, validate="focusout", validatecommand=self.verifyFloats
-        )
         self.radiusField = ttk.Entry(
             self.frame,
             textvariable=self.radius, validate="focusout", validatecommand=self.verifyFloats
         )
-        self.meshElementSizeField = ttk.Entry(
+        self.obliquityField = ttk.Entry(
             self.frame,
-            textvariable=self.elementSize, validate="focusout", validatecommand=self.verifyFloats
+            textvariable=self.obliquity, validate="focusout", validatecommand=self.verifyFloats
         )
         self.layersCountField = Spinbox(
             self.frame,
             values=range(1, 10),
             textvariable=self.layersCount,
             command=self.updateLayerList
+        )
+        self.meshElementSizeField = ttk.Entry(
+            self.frame,
+            textvariable=self.elementSize, validate="focusout", validatecommand=self.verifyFloats
         )
         self.modelNameField = ttk.Entry(
             self.frame,
@@ -436,7 +436,7 @@ class ImpactTestGUI():
         )
         self.modelNameField.grid(
             column=1,
-            row=9,
+            row=10,
             sticky='NW'
         )
 
