@@ -48,6 +48,7 @@ class ImpactTestKernel():
         self.createFakeSurfaceSets()
         self.createInteractionProperties()
         self.createInteractions()
+        self.createTieConstraints()
         self.applyInitialFields()
         self.applyBoundaryConditions()
         self.createStep()
@@ -65,18 +66,21 @@ class ImpactTestKernel():
 
     # Create separate part for each target layer
     def createTargetParts(self):
-        self.__createTargetSketch()
+        self.__createTargetSketches()
         i = 1
         for layer in self.targetLayers:
             # Provide uniform target layer naming convention
             name = 'Target-L' + str(i).zfill(3)
-            # Create deformable, three dimensional solid from common target sketch
+            inner_name = name + "I"
+            outer_name = name + "O"
+            # Create deformable, three dimensional solids from common target sketches
+            # Inner part
             part = mdb.models[self.modelName].Part(
-                name,
+                inner_name,
                 dimensionality=THREE_D,
                 type=DEFORMABLE_BODY)
             part.BaseSolidExtrude(
-                mdb.models[self.modelName].sketches['Target-Sketch'],
+                mdb.models[self.modelName].sketches['Target-Sketch-Inner'],
                 layer['thickness']
             )
             part.DatumCsysByDefault(CARTESIAN)
@@ -88,11 +92,43 @@ class ImpactTestKernel():
             )
             # Assign target layer its material
             section = mdb.models[self.modelName].HomogeneousSolidSection(
-                name,
+                inner_name,
                 str(layer['material'])
             )
             part.SectionAssignment(
-                sectionName=name,
+                sectionName=inner_name,
+                region=regionToolset.Region(
+                    cells=part.cells.getSequenceFromMask(
+                        mask=
+                        (
+                            '[#1 ]',
+                        ),
+                    )
+                )
+            )
+            # Outer part
+            part = mdb.models[self.modelName].Part(
+                outer_name,
+                dimensionality=THREE_D,
+                type=DEFORMABLE_BODY)
+            part.BaseSolidExtrude(
+                mdb.models[self.modelName].sketches['Target-Sketch-Outer'],
+                layer['thickness']
+            )
+            part.DatumCsysByDefault(CARTESIAN)
+            part.ReferencePoint(
+                point=part.InterestingPoint(
+                    edge=part.edges[0],
+                    rule=CENTER
+                )
+            )
+            # Assign target layer its material
+            section = mdb.models[self.modelName].HomogeneousSolidSection(
+                outer_name,
+                str(layer['material'])
+            )
+            part.SectionAssignment(
+                sectionName=outer_name,
                 region=regionToolset.Region(
                     cells=part.cells.getSequenceFromMask(
                         mask=
@@ -111,10 +147,8 @@ class ImpactTestKernel():
                     layer['spacing']
                 )
             )
-            self.__partitionTargetLayer(
-                part,
-                layer['thickness']
-            )
+            # Cut outer target layer in two
+            self.__partitionTargetLayer(part)
 
     # Create model assembly out of target layers and projectile core and casing
     def createModelAssembly(self):
@@ -125,20 +159,31 @@ class ImpactTestKernel():
         # Create instances of target layers placed one behind another
         for element in self.assemblyOrder:
             name = element[0]
+            inner_name = name + "I"
+            outer_name = name + "O"
             thickness = element[1]
             spacing = element[2]
             offset -= thickness + previousSpacing
             verticalOffset = -math.sin(math.pi * self.targetObliquity / 180.0) * offset
-            part = mdb.models[self.modelName].parts[name]
-            instance = assembly.Instance(
-                name=name,
+            # Outer target part instance
+            part = mdb.models[self.modelName].parts[outer_name]
+            assembly.Instance(
+                name=outer_name,
+                part=part,
+                dependent=ON
+            )
+            # Inner target part instance
+            part = mdb.models[self.modelName].parts[inner_name]
+            assembly.Instance(
+                name=inner_name,
                 part=part,
                 dependent=ON
             )
             assembly.translate(
                 instanceList=
                 (
-                    name,
+                    outer_name,
+                    inner_name
                 ),
                 vector=
                 (
@@ -249,7 +294,7 @@ class ImpactTestKernel():
         mdb.models[self.modelName].TempDisplacementDynamicsStep(
             name='Impact',
             previous='Initial',
-            timePeriod=self.__calculateTargetThickness()*10.0/self.projectileVelocity
+            timePeriod=self.__calculateTargetAbsoluteThickness() * 25.0 / self.projectileVelocity
         )
 
     # Create proper field/history output requests
@@ -334,59 +379,44 @@ class ImpactTestKernel():
     def createTargetMesh(self):
         for element in self.assemblyOrder:
             name = element[0]
-            part = mdb.models[self.modelName].parts[name]
+            inner_part = mdb.models[self.modelName].parts[name + "I"]
+            outer_part = mdb.models[self.modelName].parts[name + "O"]
+
             # Make outer, coarsely meshed region structured
-            regions = part.cells.getSequenceFromMask(
+            regions = outer_part.cells.getSequenceFromMask(
                 mask=
                 (
-                    '[#3 ]',
+                    '[#1 ]',
                 ),
             )
-            part.setMeshControls(
+            outer_part.setMeshControls(
                 regions=regions,
                 technique=STRUCTURED
             )
             # Make inner, finely meshed region medial-axis swept
-            regions = part.cells.getSequenceFromMask(
+            regions = inner_part.cells.getSequenceFromMask(
                 mask=
                 (
-                    '[#4 ]',
+                    '[#1 ]',
                 ),
             )
-            part.setMeshControls(
+            inner_part.setMeshControls(
                 regions=regions,
                 algorithm=MEDIAL_AXIS
             )
-            # Seed part with default element size
-            part.seedPart(
+            # Seed inner part with default element size
+            inner_part.seedPart(
                 size=self.meshElementSize,
                 deviationFactor=0.1,
                 minSizeFactor=0.1
             )
-            # Let outer edge consist of low number of nodes
-            edges = part.edges.getSequenceFromMask(
-                mask=
-                (
-                    '[#9300 ]',
-                ),
+            # Seed outer part with large element size
+            outer_part.seedPart(
+                size=self.targetRadius/16.0,
+                deviationFactor=0.1,
+                minSizeFactor=0.1
             )
-            part.seedEdgeByNumber(
-                edges=edges,
-                number=30
-            )
-            # Let outer target region be less densely meshed
-            edges = part.edges.getSequenceFromMask(
-                mask=
-                (
-                    '[#55 ]',
-                ),
-            )
-            part.seedEdgeBySize(
-                edges=edges,
-                size=self.meshElementSize * 20.0,
-                deviationFactor=0.1
-            )
-            # Assign all target cells C3D8RT explicit element type with hourglass control and element deletion enabled
+            # Assign all target parts C3D8RT explicit element type with hourglass control and element deletion enabled
             elemType1 = mesh.ElemType(
                 elemCode=C3D8RT,
                 elemLibrary=EXPLICIT,
@@ -395,18 +425,27 @@ class ImpactTestKernel():
                 hourglassControl=ENHANCED,
                 distortionControl=DEFAULT,
                 elemDeletion=ON,
-                # maxDegradation=0.95
+                maxDegradation=0.99
             )
-            part.setElementType(
+            inner_part.setElementType(
                 regions=(
-                    part.cells,
+                    inner_part.cells,
+                ),
+                elemTypes=(
+                    elemType1,
+                )
+            )
+            outer_part.setElementType(
+                regions=(
+                    outer_part.cells,
                 ),
                 elemTypes=(
                     elemType1,
                 )
             )
             # Mesh part
-            part.generateMesh()
+            inner_part.generateMesh()
+            outer_part.generateMesh()
 
     # Mesh projectile's core and casing
     def createProjectileMesh(self):
@@ -442,7 +481,7 @@ class ImpactTestKernel():
                     hourglassControl=ENHANCED,
                     distortionControl=DEFAULT,
                     elemDeletion=ON,
-                    # maxDegradation=0.95
+                    maxDegradation=0.99
                 ),
             )
         )
@@ -480,21 +519,22 @@ class ImpactTestKernel():
                     elemLibrary=EXPLICIT,
                     secondOrderAccuracy=OFF,
                     elemDeletion=ON,
-                    # maxDegradation=0.95
+                    maxDegradation=0.99
                 ),
             )
         )
         # Mesh casing
         casing.generateMesh()
 
-    # Create common target and target partition sketches for all target layers
-    def __createTargetSketch(self):
+    # Create common outer and inner target part sketches for all target layers
+    def __createTargetSketches(self):
         # Conversion from [deg] to [rad]
         radians = math.pi * self.targetObliquity / 180.0
         # Stretch ratio reducing risk of projectile entering coarsely meshed area of target
         stretch = 1.0 / math.cos(radians)
         # Create elliptic target sketch
-        sketch = mdb.models[self.modelName].ConstrainedSketch('Target-Sketch', self.targetRadius * 2.0)
+        sketch = mdb.models[self.modelName].ConstrainedSketch('Target-Sketch-Outer', self.targetRadius * 2.0)
+        # Outer bound
         sketch.EllipseByCenterPerimeter(
             center=
             (
@@ -512,10 +552,28 @@ class ImpactTestKernel():
                 0.0
             )
         )
-        # Create elliptic target partition sketch
+        # Inner bound
         innerRadius = self.targetRadius / 2.0
+        sketch.EllipseByCenterPerimeter(
+            center=
+            (
+                0.0,
+                0.0
+            ),
+            axisPoint1=
+            (
+                0.0,
+                innerRadius * stretch
+            ),
+            axisPoint2=
+            (
+                innerRadius,
+                0.0
+            )
+        )
+        # Create elliptic target partition sketch
         innerSketch = mdb.models[self.modelName].ConstrainedSketch(
-            'Inner-Sketch',
+            'Target-Sketch-Inner',
             innerRadius * 2.0
         )
         innerSketch.EllipseByCenterPerimeter(
@@ -537,80 +595,14 @@ class ImpactTestKernel():
         )
 
     # Combine thicknesses of all target layers
-    def __calculateTargetThickness(self):
+    def __calculateTargetAbsoluteThickness(self):
         thickness = 0.0
         for layer in self.targetLayers:
-            thickness += layer['thickness']
+            thickness += layer['thickness'] + layer['spacing']
         return thickness
 
     # Partition each target layer
-    def __partitionTargetLayer(self, part, thickness):
-        faces, edges, datums = part.faces, part.edges, part.datums
-        # Create sketch transform
-        transform = part.MakeSketchTransform(
-            sketchPlane=faces[1],
-            sketchUpEdge=datums[2].axis2,
-            sketchPlaneSide=SIDE1,
-            origin=
-            (
-                0.0,
-                0.0,
-                thickness
-            )
-        )
-        # Map common sketch on target's face
-        sketch = mdb.models[self.modelName].ConstrainedSketch(
-            name='__profile__',
-            sheetSize=self.targetRadius / 2.0,
-            gridSpacing=0.001,
-            transform=transform
-        )
-        sketch.sketchOptions.setValues(
-            decimalPlaces=3
-        )
-        sketch.setPrimaryObject(
-            option=SUPERIMPOSE
-        )
-        part.projectReferencesOntoSketch(
-            sketch=sketch,
-            filter=COPLANAR_EDGES
-        )
-        part = mdb.models[self.modelName].parts[part.name]
-        sketch.retrieveSketch(
-            sketch=mdb.models[self.modelName].sketches['Inner-Sketch']
-        )
-        faces = part.faces
-        pickedFaces = faces.getSequenceFromMask(
-            mask=
-            (
-                '[#2 ]',
-            ),
-        )
-        edges, datums = part.edges, part.datums
-        part.PartitionFaceBySketch(
-            sketchUpEdge=datums[2].axis2,
-            faces=pickedFaces,
-            sketch=sketch
-        )
-        sketch.unsetPrimaryObject()
-        del mdb.models[self.modelName].sketches['__profile__']
-        # Select target's cell to partition
-        cells = part.cells
-        pickedCells = cells.getSequenceFromMask(
-            mask=
-            (
-                '[#1 ]',
-            ),
-        )
-        edges, datums = part.edges, part.datums
-        pickedEdges = (edges[1],)
-        # Partition target to create inner cell
-        part.PartitionCellByExtrudeEdge(
-            line=datums[2].axis3,
-            cells=pickedCells,
-            edges=pickedEdges,
-            sense=REVERSE
-        )
+    def __partitionTargetLayer(self, part):
         # Partition target's outer cell to allow hex swept meshing
         part.DatumPlaneByPrincipalPlane(
             principalPlane=YZPLANE,
@@ -625,7 +617,7 @@ class ImpactTestKernel():
         )
         datums = part.datums
         part.PartitionCellByDatumPlane(
-            datumPlane=datums[7],
+            datumPlane=datums[5],
             cells=pickedCells
         )
 
@@ -635,11 +627,11 @@ class ImpactTestKernel():
         # Create list of selections
         faces = []
         for layer in self.assemblyOrder:
-            name = layer[0]
+            name = layer[0] + "O"
             faces.append(assembly.instances[name].faces.getSequenceFromMask(
                 mask=
                 (
-                    '[#204 ]',
+                    '[#48 ]',
                 ),
             )
             )
@@ -715,10 +707,16 @@ class ImpactTestKernel():
         )
         for layer in self.assemblyOrder:
             name = layer[0]
-            cells = cells + assembly.instances[name].cells.getSequenceFromMask(
+            cells = cells + assembly.instances[name + "I"].cells.getSequenceFromMask(
                 mask=
                 (
-                    '[#7 ]',
+                    '[#1 ]',
+                ),
+            )
+            cells = cells + assembly.instances[name + "O"].cells.getSequenceFromMask(
+                mask=
+                (
+                    '[#3 ]',
                 ),
             )
         # Create set
@@ -833,11 +831,11 @@ class ImpactTestKernel():
     def createFakeSurfaceSets(self):
         # FIXME: Make Surface objects actually re-definable as mesh surfaces
         assembly = mdb.models[self.modelName].rootAssembly
-        faces = assembly.instances['Target-L001'].faces
+        faces = assembly.instances['Target-L001I'].faces
         faces = faces.getSequenceFromMask(
             mask=
             (
-                '[#400 ]',
+                '[#2 ]',
             ),
         )
         faceSet = assembly.Set(
@@ -940,3 +938,38 @@ class ImpactTestKernel():
                 ),
             )
         )
+
+    def createTieConstraints(self):
+        for layer in self.assemblyOrder:
+            name = layer[0]
+            inner_name = name + "I"
+            outer_name = name + "O"
+            assembly = mdb.models[self.modelName].rootAssembly
+            inner_faces = assembly.instances[inner_name].faces.getSequenceFromMask(
+                mask=(
+                  '[#1 ]',
+                ),
+            )
+            assembly.Surface(
+                side1Faces=inner_faces,
+                name=inner_name + "_TIE"
+            )
+            inner_region = assembly.surfaces[inner_name+"_TIE"]
+            outer_faces = assembly.instances[outer_name].faces.getSequenceFromMask(
+                mask=(
+                  '[#a0 ]',
+                ),
+            )
+            assembly.Surface(
+                side1Faces=outer_faces,
+                name=outer_name + "_TIE"
+            )
+            outer_region = assembly.surfaces[outer_name+"_TIE"]
+            mdb.models[self.modelName].Tie(
+                name=name + "_TIE",
+                master=outer_region,
+                slave=inner_region,
+                positionToleranceMethod=COMPUTED,
+                adjust=ON,
+                constraintEnforcement=SURFACE_TO_SURFACE
+            )
