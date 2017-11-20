@@ -72,6 +72,10 @@ class ImpactTestGUI():
             self.frame,
             text="Element size [mm]"
         )
+        self.failureCoefficientLabel = ttk.Label(
+            self.frame,
+            text="Failure coefficient [-]"
+        )
         self.modelLabel = ttk.Label(
             self.frame,
             text="Model"
@@ -105,6 +109,7 @@ class ImpactTestGUI():
         self.radius = StringVar()
         self.layersCount = StringVar()
         self.elementSize = StringVar()
+        self.failureCoefficient = StringVar()
         self.modelName = StringVar()
         # Editable fields
         self.projectileField = ttk.Combobox(
@@ -133,6 +138,10 @@ class ImpactTestGUI():
         self.meshElementSizeField = ttk.Entry(
             self.frame,
             textvariable=self.elementSize, validate="focusout", validatecommand=self.verifyFloats
+        )
+        self.failureCoefficientField = ttk.Entry(
+            self.frame,
+            textvariable=self.failureCoefficient, validate="focusout", validatecommand=self.verifyFloats
         )
         self.modelNameField = ttk.Entry(
             self.frame,
@@ -364,6 +373,12 @@ class ImpactTestGUI():
             treshold=0.05,
             maximum=2.0
         )
+        # Allow failure coefficient to be between 0.01 and 100.0 [-]
+        self.verifyStringVarFloat(
+            self.elementSize,
+            treshold=0.01,
+            maximum=100.0
+        )
 
     # Verify if StringVar's value is valid float and fits in limits
     def verifyStringVarFloat(self, strvar, treshold=0.0, maximum=None):
@@ -434,9 +449,14 @@ class ImpactTestGUI():
             row=8,
             sticky='NW'
         )
+        self.failureCoefficientField.grid(
+            column=1,
+            row=9,
+            sticky='NW'
+        )
         self.modelNameField.grid(
             column=1,
-            row=10,
+            row=11,
             sticky='NW'
         )
 
@@ -487,14 +507,19 @@ class ImpactTestGUI():
             row=8,
             sticky='NW'
         )
-        self.modelLabel.grid(
+        self.failureCoefficientLabel.grid(
             column=0,
             row=9,
             sticky='NW'
         )
-        self.modelNameLabel.grid(
+        self.modelLabel.grid(
             column=0,
             row=10,
+            sticky='NW'
+        )
+        self.modelNameLabel.grid(
+            column=0,
+            row=11,
             sticky='NW'
         )
         self.layerNoLabel.grid(
@@ -544,7 +569,9 @@ class ImpactTestGUI():
             'layers': layers
         }
         # Convert [mm] to [m]
+        config['modelName'] = self.modelName.get()
         config['meshElementSize'] = float(self.elementSize.get()) / 1000.0
+        config['failureCoefficient'] = float(self.failureCoefficient.get())
         return config
 
     # Load model from configuration object and set entries to proper values
@@ -598,6 +625,18 @@ class ImpactTestGUI():
                     3
                 )
             )
+        if 'failureCoefficient' in config:
+            # Convert [m] back to [mm]
+            self.failureCoefficient.set(
+                round(
+                    float(
+                        config['failureCoefficient']
+                    ),
+                    3
+                )
+            )
+        if 'modelName' in config:
+            self.modelName.set(config['modelName'])
         self.verifyFloats()
 
     # Load target layers from config object section
@@ -613,6 +652,8 @@ class ImpactTestGUI():
             material = ""
             # Default thickness is 0.5 [mm]
             thickness = 0.5
+            # Default spacing is 0.0 [mm]
+            spacing = 0.0
             if 'material' in layer and layer['material'] in self.materials():
                 material = layer['material']
             if 'thickness' in layer:

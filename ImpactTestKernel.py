@@ -34,6 +34,8 @@ class ImpactTestKernel():
         self.targetLayers = config['armor']['layers']
         # Average mesh element size in [m] used to seed parts
         self.meshElementSize = config['meshElementSize']
+        # Failure coefficient to adjust material properties easily
+        self.failureCoefficient = config['failureCoefficient']
         # Auxilliary list to store layer names, thicknesses and spacings in [m]
         self.assemblyOrder = []
 
@@ -817,7 +819,7 @@ class ImpactTestKernel():
             if material.johnsonCookDamageInitiation is not None:
                 if material.johnsonCookDamageInitiation.damageEvolution is not None:
                     strainAtFailure = material.johnsonCookDamageInitiation.damageEvolution.table[0][0]
-                    displacementAtFailure = strainAtFailure * self.meshElementSize
+                    displacementAtFailure = strainAtFailure * self.meshElementSize * self.failureCoefficient
                     material.johnsonCookDamageInitiation.damageEvolution.setValues(
                         table=
                         (
