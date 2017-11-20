@@ -13,7 +13,7 @@ class ImpactTestKernel():
     # Initialize impact test kernel basing on configuration passed
     def __init__(self, config, modelName="Model-1"):
         # Model name - used both as model's name, job's name and input file name
-        self.modelName = modelName
+        self.modelName = str(modelName)
         # Create new model database if not default
         if modelName != "Model-1":
             mdb.Model(self.modelName)
@@ -75,15 +75,15 @@ class ImpactTestKernel():
             name = 'Target-L' + str(i).zfill(3)
             inner_name = name + "I"
             outer_name = name + "O"
+            path_name = name + "P"
             # Create deformable, three dimensional solids from common target sketches
             # Inner part
             part = mdb.models[self.modelName].Part(
                 inner_name,
                 dimensionality=THREE_D,
                 type=DEFORMABLE_BODY)
-            part.BaseSolidExtrude(
+            part.BaseShell(
                 mdb.models[self.modelName].sketches['Target-Sketch-Inner'],
-                layer['thickness']
             )
             part.DatumCsysByDefault(CARTESIAN)
             part.ReferencePoint(
@@ -92,6 +92,45 @@ class ImpactTestKernel():
                     rule=CENTER
                 )
             )
+            # Create sweep path
+            mdb.models[self.modelName].parts[inner_name].DatumPlaneByPrincipalPlane(principalPlane=YZPLANE, offset=0.0)
+            mdb.models[self.modelName].parts[inner_name].DatumAxisByPrincipalAxis(principalAxis=YAXIS)
+            part = mdb.models[self.modelName].parts[inner_name]
+            plane = part.datums[4]
+            axis = part.datums[5]
+            transform = part.MakeSketchTransform(
+                sketchPlane=plane,
+                sketchUpEdge=axis,
+                sketchPlaneSide=SIDE1,
+                sketchOrientation=RIGHT,
+                origin=(0.0, 0.0, 0.0)
+            )
+            sweepPath = mdb.models[self.modelName].ConstrainedSketch(
+                path_name,
+                layer['thickness'] * 2.0,
+                transform=transform
+            )
+            part.projectReferencesOntoSketch(sketch=sweepPath, filter=COPLANAR_EDGES)
+            sweepPath.Line(
+                point1=
+                (
+                    0.0,
+                    0.0
+                ),
+                point2=
+                (
+                    -layer['thickness'],
+                    -layer['thickness'] * math.sin(math.pi * self.targetObliquity / 180.0)
+                )
+            )
+            part.SolidSweep(
+                pathPlane=plane,
+                pathUpEdge=axis,
+                profile=part.faces[0],
+                pathOrientation=RIGHT,
+                path=sweepPath
+            )
+            del sweepPath
             # Assign target layer its material
             section = mdb.models[self.modelName].HomogeneousSolidSection(
                 inner_name,
@@ -113,9 +152,8 @@ class ImpactTestKernel():
                 outer_name,
                 dimensionality=THREE_D,
                 type=DEFORMABLE_BODY)
-            part.BaseSolidExtrude(
-                mdb.models[self.modelName].sketches['Target-Sketch-Outer'],
-                layer['thickness']
+            part.BaseShell(
+                mdb.models[self.modelName].sketches['Target-Sketch-Outer']
             )
             part.DatumCsysByDefault(CARTESIAN)
             part.ReferencePoint(
@@ -124,6 +162,45 @@ class ImpactTestKernel():
                     rule=CENTER
                 )
             )
+            # Create sweep path
+            mdb.models[self.modelName].parts[outer_name].DatumPlaneByPrincipalPlane(principalPlane=YZPLANE, offset=0.0)
+            mdb.models[self.modelName].parts[outer_name].DatumAxisByPrincipalAxis(principalAxis=YAXIS)
+            part = mdb.models[self.modelName].parts[outer_name]
+            plane = part.datums[4]
+            axis = part.datums[5]
+            transform = part.MakeSketchTransform(
+                sketchPlane=plane,
+                sketchUpEdge=axis,
+                sketchPlaneSide=SIDE1,
+                sketchOrientation=RIGHT,
+                origin=(0.0, 0.0, 0.0)
+            )
+            sweepPath = mdb.models[self.modelName].ConstrainedSketch(
+                path_name,
+                layer['thickness'] * 2.0,
+                transform=transform
+            )
+            part.projectReferencesOntoSketch(sketch=sweepPath, filter=COPLANAR_EDGES)
+            sweepPath.Line(
+                point1=
+                (
+                    0.0,
+                    0.0
+                ),
+                point2=
+                (
+                    -layer['thickness'],
+                    -layer['thickness'] * math.sin(math.pi * self.targetObliquity / 180.0)
+                )
+            )
+            part.SolidSweep(
+                pathPlane=plane,
+                pathUpEdge=axis,
+                profile=part.faces[0],
+                pathOrientation=RIGHT,
+                path=sweepPath
+            )
+            del sweepPath
             # Assign target layer its material
             section = mdb.models[self.modelName].HomogeneousSolidSection(
                 outer_name,
@@ -619,7 +696,7 @@ class ImpactTestKernel():
         )
         datums = part.datums
         part.PartitionCellByDatumPlane(
-            datumPlane=datums[5],
+            datumPlane=datums[8],
             cells=pickedCells
         )
 
