@@ -28,8 +28,10 @@ class ImpactTestKernel():
         self.projectileVelocity = config['projectile']['velocity']
         # Target obliquity in [deg] - 0 means normal to projectile's direction
         self.targetObliquity = config['armor']['obliquity']
-        # Target radius in [m]
+        # Target semi-minor axis in [m]
         self.targetRadius = config['armor']['radius']
+        # Target center semi-minor axis in [m]
+        self.targetInnerRadius = config['armor']['innerRadius']
         # List of target layers - describing layers thickness in [m] and material
         self.targetLayers = config['armor']['layers']
         # Average mesh element size in [m] used to seed parts
@@ -323,7 +325,7 @@ class ImpactTestKernel():
         # Translate projectile lower to compromise possible slipping/ricochet
         xyzOffset = (
             0.0,
-            -0.1875 * self.targetRadius * math.sin(math.pi * self.targetObliquity / 180.0),
+            -0.375 * self.targetInnerRadius * math.sin(math.pi * self.targetObliquity / 180.0),
             0.0
         )
         assembly.translate(
@@ -632,7 +634,6 @@ class ImpactTestKernel():
             )
         )
         # Inner bound
-        innerRadius = self.targetRadius / 2.0
         sketch.EllipseByCenterPerimeter(
             center=
             (
@@ -642,18 +643,18 @@ class ImpactTestKernel():
             axisPoint1=
             (
                 0.0,
-                innerRadius * stretch
+                self.targetInnerRadius * stretch
             ),
             axisPoint2=
             (
-                innerRadius,
+                self.targetInnerRadius,
                 0.0
             )
         )
         # Create elliptic target partition sketch
         innerSketch = mdb.models[self.modelName].ConstrainedSketch(
             'Target-Sketch-Inner',
-            innerRadius * 2.0
+            self.targetInnerRadius
         )
         innerSketch.EllipseByCenterPerimeter(
             center=
@@ -664,11 +665,11 @@ class ImpactTestKernel():
             axisPoint1=
             (
                 0.0,
-                innerRadius * stretch
+                self.targetInnerRadius * stretch
             ),
             axisPoint2=
             (
-                innerRadius,
+                self.targetInnerRadius,
                 0.0
             )
         )

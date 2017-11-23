@@ -54,7 +54,11 @@ class ImpactTestGUI():
         )
         self.armorRadiusLabel = ttk.Label(
             self.frame,
-            text="Armor plate radius [mm]"
+            text="Armor plate semi-minor axis [mm]"
+        )
+        self.armorInnerRadiusLabel = ttk.Label(
+            self.frame,
+            text="Armor plate center semi-minor axis [mm]"
         )
         self.armorLayersLabel = ttk.Label(
             self.frame,
@@ -107,6 +111,7 @@ class ImpactTestGUI():
         self.velocity = StringVar()
         self.obliquity = StringVar()
         self.radius = StringVar()
+        self.innerRadius = StringVar()
         self.layersCount = StringVar()
         self.elementSize = StringVar()
         self.failureCoefficient = StringVar()
@@ -124,6 +129,10 @@ class ImpactTestGUI():
         self.radiusField = ttk.Entry(
             self.frame,
             textvariable=self.radius, validate="focusout", validatecommand=self.verifyFloats
+        )
+        self.innerRadiusField = ttk.Entry(
+            self.frame,
+            textvariable=self.innerRadius, validate="focusout", validatecommand=self.verifyFloats
         )
         self.obliquityField = ttk.Entry(
             self.frame,
@@ -349,11 +358,22 @@ class ImpactTestGUI():
                 treshold=0.0,
                 maximum=100.0
             )
-        # Allow target radius to be between 30.0 and 55.0 [mm]. Could be replaced with caliber-dependent radius
+        # Allow target radius to be between 30.0 and 120.0 [mm].
         self.verifyStringVarFloat(
             self.radius,
             treshold=30.0,
-            maximum=55.0
+            maximum=120.0
+        )
+        # Allow target inner radius to be between 10.0 and max((2/3)*radius, 25) [mm].
+        self.verifyStringVarFloat(
+            self.innerRadius,
+            treshold=10.0,
+            maximum=max(
+                [
+                    2.0 * float(self.radius.get()) / 3.0,
+                    25.0
+                ]
+            )
         )
         # Allow target obliquity to be between 0 (normal) and 60 [deg]
         self.verifyStringVarFloat(
@@ -434,29 +454,34 @@ class ImpactTestGUI():
             row=4,
             sticky='NW'
         )
-        self.obliquityField.grid(
+        self.innerRadiusField.grid(
             column=1,
             row=5,
             sticky='NW'
         )
-        self.layersCountField.grid(
+        self.obliquityField.grid(
             column=1,
             row=6,
             sticky='NW'
         )
-        self.meshElementSizeField.grid(
+        self.layersCountField.grid(
             column=1,
-            row=8,
+            row=7,
             sticky='NW'
         )
-        self.failureCoefficientField.grid(
+        self.meshElementSizeField.grid(
             column=1,
             row=9,
             sticky='NW'
         )
+        self.failureCoefficientField.grid(
+            column=1,
+            row=10,
+            sticky='NW'
+        )
         self.modelNameField.grid(
             column=1,
-            row=11,
+            row=12,
             sticky='NW'
         )
 
@@ -487,39 +512,44 @@ class ImpactTestGUI():
             row=4,
             sticky='NW'
         )
-        self.armorObliquityLabel.grid(
+        self.armorInnerRadiusLabel.grid(
             column=0,
             row=5,
             sticky='NW'
         )
-        self.armorLayersLabel.grid(
+        self.armorObliquityLabel.grid(
             column=0,
             row=6,
             sticky='NW'
         )
-        self.modelMainLabel.grid(
+        self.armorLayersLabel.grid(
             column=0,
             row=7,
             sticky='NW'
         )
-        self.meshElementSize.grid(
+        self.modelMainLabel.grid(
             column=0,
             row=8,
             sticky='NW'
         )
-        self.failureCoefficientLabel.grid(
+        self.meshElementSize.grid(
             column=0,
             row=9,
             sticky='NW'
         )
-        self.modelLabel.grid(
+        self.failureCoefficientLabel.grid(
             column=0,
             row=10,
             sticky='NW'
         )
-        self.modelNameLabel.grid(
+        self.modelLabel.grid(
             column=0,
             row=11,
+            sticky='NW'
+        )
+        self.modelNameLabel.grid(
+            column=0,
+            row=12,
             sticky='NW'
         )
         self.layerNoLabel.grid(
@@ -550,10 +580,10 @@ class ImpactTestGUI():
         for (label, matvar, material, thickvar, thickness, spacevar, spacing) in self.layupWidgets:
             layers.append(
                 {
-                'material': matvar.get(),
-                # Convert [mm] to [m]
-                'thickness': float(thickvar.get()) / 1000.0,
-                'spacing': float(spacevar.get()) / 1000.0
+                    'material': matvar.get(),
+                    # Convert [mm] to [m]
+                    'thickness': float(thickvar.get()) / 1000.0,
+                    'spacing': float(spacevar.get()) / 1000.0
                 }
             )
         config['projectile'] = {
@@ -564,6 +594,7 @@ class ImpactTestGUI():
         config['armor'] = {
             # Convert [mm] to [m]
             'radius': float(self.radius.get()) / 1000.0,
+            'innerRadius': float(self.innerRadius.get()) / 1000.0,
             # Leave [deg] as-is
             'obliquity': float(self.obliquity.get()),
             'layers': layers
@@ -600,9 +631,16 @@ class ImpactTestGUI():
                         1
                     )
                 )
-            # Currently innerRadius value is ignored
             if 'innerRadius' in config['armor']:
-                pass
+                # Convert [m] back to [mm]
+                self.innerRadius.set(
+                    round(
+                        float(
+                            config[u'armor'][u'innerRadius']
+                        ) * 1000.0,
+                        1
+                    )
+                )
             if 'obliquity' in config['armor']:
                 # Leave [deg] as-is
                 self.obliquity.set(
