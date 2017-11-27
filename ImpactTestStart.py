@@ -395,7 +395,7 @@ class ImpactTestGUI():
         )
         # Allow failure coefficient to be between 0.01 and 100.0 [-]
         self.verifyStringVarFloat(
-            self.elementSize,
+            self.failureCoefficient,
             treshold=0.01,
             maximum=100.0
         )
