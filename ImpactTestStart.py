@@ -361,19 +361,14 @@ class ImpactTestGUI():
         # Allow target radius to be between 30.0 and 120.0 [mm].
         self.verifyStringVarFloat(
             self.radius,
-            treshold=30.0,
+            treshold=50.0,
             maximum=120.0
         )
-        # Allow target inner radius to be between 10.0 and max((2/3)*radius, 25) [mm].
+        # Allow target inner radius to be between 10.0 and 45.0 [mm].
         self.verifyStringVarFloat(
             self.innerRadius,
             treshold=10.0,
-            maximum=max(
-                [
-                    2.0 * float(self.radius.get()) / 3.0,
-                    25.0
-                ]
-            )
+            maximum=45.0
         )
         # Allow target obliquity to be between 0 (normal) and 60 [deg]
         self.verifyStringVarFloat(
@@ -407,9 +402,9 @@ class ImpactTestGUI():
         try:
             t = float(strvar.get())
             if t < treshold:
-                strvar.set(treshold)
+                strvar.set(float(treshold))
             if t > maximum:
-                strvar.set(maximum)
+                strvar.set(float(maximum))
         except ValueError:
             strvar.set(treshold)
 
