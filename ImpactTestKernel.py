@@ -891,13 +891,13 @@ class ImpactTestKernel():
             if line.startswith('*End Assembly'):
                 return lines.index(line) - 1
 
-    # Adjust materials' displacement criterion for J-C damage evolution to element's size
+    # Adjust materials' displacement criterion for J-C damage evolution to failure coefficient
     def adjustDisplacementsAtFailure(self):
         for material in mdb.models[self.modelName].materials.values():
-            if material.johnsonCookDamageInitiation is not None:
-                if material.johnsonCookDamageInitiation.damageEvolution is not None:
+            if hasattr(material, 'johnsonCookDamageInitiation'):
+                if hasattr(material.johnsonCookDamageInitiation, 'damageEvolution'):
                     strainAtFailure = material.johnsonCookDamageInitiation.damageEvolution.table[0][0]
-                    displacementAtFailure = strainAtFailure * self.meshElementSize * self.failureCoefficient
+                    displacementAtFailure = strainAtFailure * self.failureCoefficient * 0.001
                     material.johnsonCookDamageInitiation.damageEvolution.setValues(
                         table=
                         (
