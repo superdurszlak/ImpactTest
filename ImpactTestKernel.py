@@ -493,7 +493,7 @@ class ImpactTestKernel():
             )
             # Seed outer part with large element size
             outer_part.seedPart(
-                size=self.targetRadius/16.0,
+                size=self.meshElementSize * 4.0,
                 deviationFactor=0.1,
                 minSizeFactor=0.1
             )
