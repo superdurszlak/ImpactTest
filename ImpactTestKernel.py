@@ -40,11 +40,14 @@ class ImpactTestKernel():
         self.failureCoefficient = config['failureCoefficient']
         # Auxilliary list to store layer names, thicknesses and spacings in [m]
         self.assemblyOrder = []
+        # Auxillary list of projectile component names
+        self.projectileComponents = []
 
     # Perform all possible steps of model preparation
     def run(self):
         self.adjustDisplacementsAtFailure()
         self.setModelConstants()
+        self.prepareProjectileParts()
         self.createTargetParts()
         self.createModelAssembly()
         self.createProjectileMesh()
@@ -274,8 +277,6 @@ class ImpactTestKernel():
                 )
             )
             previousSpacing = spacing
-        core = mdb.models[self.modelName].parts['Core_' + str(self.projectileType)]
-        casing = mdb.models[self.modelName].parts['Casing_' + str(self.projectileType)]
         offset = self.assemblyOrder[0][1]
         # Projectile offset preventing possible overlapping with target
         stdOffset = 0.0005 + offset / math.cos(math.pi * self.targetObliquity / 180.0)
@@ -296,28 +297,21 @@ class ImpactTestKernel():
             0.0
         )
         # Create instances of projectile casing and core
-        for part in (core, casing):
+        for part in self.projectileComponents:
             assembly.Instance(
-                name=part.name,
-                part=part,
+                name=part,
+                part=mdb.models[self.modelName].parts[part],
                 dependent=ON
             )
         # Translate projectile away from the target
         assembly.translate(
             instanceList=
-            (
-                core.name,
-                casing.name
-            ),
+            self.projectileComponents,
             vector=xyzOffset
         )
         # Rotate projectile to introduce target's obliquity
         assembly.rotate(
-            instanceList=
-            (
-                core.name,
-                casing.name
-            ),
+            instanceList=self.projectileComponents,
             axisPoint=axisPt,
             axisDirection=axisDir,
             angle=self.targetObliquity
@@ -330,10 +324,7 @@ class ImpactTestKernel():
         )
         assembly.translate(
             instanceList=
-            (
-                core.name,
-                casing.name
-            ),
+            self.projectileComponents,
             vector=xyzOffset
         )
 
@@ -530,82 +521,43 @@ class ImpactTestKernel():
 
     # Mesh projectile's core and casing
     def createProjectileMesh(self):
-        core = mdb.models[self.modelName].parts['Core_' + str(self.projectileType)]
-        # Make projectile's core medial-axis swept
-        corec = core.cells.getSequenceFromMask(
-            mask=
-            (
-                '[#1 ]',
-            ),
-        )
-        core.setMeshControls(
-            regions=corec,
-            algorithm=MEDIAL_AXIS
-        )
-        # Seed core with default mesh element size
-        core.seedPart(
-            size=self.meshElementSize,
-            deviationFactor=0.1,
-            minSizeFactor=0.1
-        )
-        # Assign core C3D8RT explicit element type with hourglass control
-        core.setElementType(
-            regions=(
-                corec,
-            ),
-            elemTypes=(
-                mesh.ElemType(
-                    elemCode=C3D8RT,
-                    elemLibrary=EXPLICIT,
-                    kinematicSplit=AVERAGE_STRAIN,
-                    secondOrderAccuracy=OFF,
-                    hourglassControl=ENHANCED,
-                    distortionControl=DEFAULT,
-                    elemDeletion=ON,
-                    maxDegradation=0.99
+        for part in self.projectileComponents:
+            part = mdb.models[self.modelName].parts[part]
+            # Make projectile's part TET free meshed - more refined meshes have to be applied manually
+            part_cells = part.cells.getSequenceFromMask(
+                mask=
+                (
+                    '[#1 ]',
                 ),
             )
-        )
-        # Mesh core
-        core.generateMesh()
-        casing = mdb.models[self.modelName].parts['Casing_' + str(self.projectileType)]
-        # Make projectile's casing freely meshed with tetrahedral elements
-        casingc = casing.cells.getSequenceFromMask(
-            mask=
-            (
-                '[#1 ]',
-            ),
-        )
-        casing.setMeshControls(
-            regions=casingc,
-            elemShape=TET,
-            technique=FREE
-        )
-        # Seed casing with default element size (note that tip's elements will be considerably smaller!)
-        casing.seedPart(
-            size=self.meshElementSize,
-            deviationFactor=0.1,
-            minSizeFactor=0.1
-        )
-        # Assign casing C3D10MT explicit element type (second-order tetrahedral) with hourglass control
-        casing.setElementType(
-            regions=
-            (
-                casingc,
-            ),
-            elemTypes=
-            (
-                mesh.ElemType(
-                    elemCode=C3D4T,
-                    elemLibrary=EXPLICIT,
-                    secondOrderAccuracy=OFF,
-                    elemDeletion=ON,
-                    maxDegradation=0.99
-                ),
+            part.setMeshControls(
+                regions=part_cells,
+                elemShape=TET,
+                technique=FREE
             )
-        )
-        # Mesh casing
-        casing.generateMesh()
+            # Seed part with default mesh element size
+            part.seedPart(
+                size=self.meshElementSize,
+                deviationFactor=0.1,
+                minSizeFactor=0.1
+            )
+            # Assign part C3D4T explicit element type
+            part.setElementType(
+                regions=(
+                    part_cells,
+                ),
+                elemTypes=(
+                    mesh.ElemType(
+                        elemCode=C3D4T,
+                        elemLibrary=EXPLICIT,
+                        secondOrderAccuracy=OFF,
+                        elemDeletion=ON,
+                        maxDegradation=0.99
+                    ),
+                )
+            )
+            # Mesh part
+            part.generateMesh()
 
     # Create common outer and inner target part sketches for all target layers
     def __createTargetSketches(self):
@@ -735,18 +687,22 @@ class ImpactTestKernel():
     def __applyProjectileVelocity(self):
         assembly = mdb.models[self.modelName].rootAssembly
         # Create selection out of casing's and core's cells
-        cells = assembly.instances['Core_' + self.projectileType].cells.getSequenceFromMask(
-            mask=
-            (
-                '[#1 ]',
-            ),
-        )
-        cells = cells + assembly.instances['Casing_' + self.projectileType].cells.getSequenceFromMask(
-            mask=
-            (
-                '[#1 ]',
-            ),
-        )
+        cells = None
+        for part in self.projectileComponents:
+            if cells is None:
+                cells = assembly.instances[part].cells.getSequenceFromMask(
+                    mask=
+                    (
+                        '[#1 ]',
+                    ),
+                )
+            else:
+                cells = cells + assembly.instances[part].cells.getSequenceFromMask(
+                    mask=
+                    (
+                        '[#1 ]',
+                    ),
+                )
         # Create set
         region = assembly.Set(
             cells=cells,
@@ -773,18 +729,23 @@ class ImpactTestKernel():
     def __applyInitialTemperature(self):
         assembly = mdb.models[self.modelName].rootAssembly
         # Create selection out of target's and projectile's cells
-        cells = assembly.instances['Core_' + self.projectileType].cells.getSequenceFromMask(
-            mask=
-            (
-                '[#1 ]',
-            ),
-        )
-        cells = cells + assembly.instances['Casing_' + self.projectileType].cells.getSequenceFromMask(
-            mask=
-            (
-                '[#1 ]',
-            ),
-        )
+        cells = None
+        for part in self.projectileComponents:
+            if cells is None:
+                cells = assembly.instances[part].cells.getSequenceFromMask(
+                    mask=
+                    (
+                        '[#1 ]',
+                    ),
+                )
+            else:
+                cells = cells + assembly.instances[part].cells.getSequenceFromMask(
+                    mask=
+                    (
+                        '[#1 ]',
+                    ),
+                )
+
         for layer in self.assemblyOrder:
             name = layer[0]
             cells = cells + assembly.instances[name + "I"].cells.getSequenceFromMask(
@@ -1053,3 +1014,8 @@ class ImpactTestKernel():
                 adjust=ON,
                 constraintEnforcement=SURFACE_TO_SURFACE
             )
+
+    def prepareProjectileParts(self):
+        for part_name in mdb.models[self.modelName].parts.keys():
+            if part_name.startswith("Projectile-"+self.projectileType):
+                self.projectileComponents.append(part_name)
