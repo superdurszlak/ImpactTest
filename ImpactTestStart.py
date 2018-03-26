@@ -207,6 +207,13 @@ class ImpactTestGUI():
             modelName = "Model-1"
         # GUI isn't needed anymore
         self.master.destroy()
+        # # Remove redundant parts
+        for part in self.parts():
+            if part == self.projectile.get():
+                continue
+            for m_part in mdb.models["Model-1"].parts.keys():
+                if m_part[:-3] == ("Projectile-" + part):
+                    del mdb.models["Model-1"].parts[m_part]
         # Run kernel
         ImpactTestKernel(config, modelName).run()
 
@@ -734,58 +741,36 @@ def importParts(modelName="Model-1"):
             config = json.load(
                 open(config)
             )
-            # Create casing and assign it material
-            casing = mdb.models[modelName].PartFromGeometryFile(
-                "Casing_" + name,
-                projectile,
-                THREE_D,
-                DEFORMABLE_BODY,
-                bodyNum=config['casing']['id']
-            )
-            cells = casing.cells.getSequenceFromMask(
-                mask=
-                (
-                    '[#1 ]',
-                ),
-            )
-            region = casing.Set(
-                cells=cells,
-                name='volume'
-            )
-            section = mdb.models[modelName].HomogeneousSolidSection(
-                "Casing_" + name,
-                str(config['casing']['material'])
-            )
-            casing.SectionAssignment(
-                sectionName="Casing_" + name,
-                region=region,
-            )
-            # Create core and assign it material
-            core = mdb.models[modelName].PartFromGeometryFile(
-                "Core_" + name,
-                projectile,
-                THREE_D,
-                DEFORMABLE_BODY,
-                bodyNum=config['core']['id']
-            )
-            cells = core.cells.getSequenceFromMask(
-                mask=
-                (
-                    '[#1 ]',
-                ),
-            )
-            region = core.Set(
-                cells=cells,
-                name='volume'
-            )
-            section = mdb.models[modelName].HomogeneousSolidSection(
-                "Core_" + name,
-                str(config['core']['material'])
-            )
-            core.SectionAssignment(
-                sectionName="Core_" + name,
-                region=region,
-            )
+            config = [dict([(str(k), str(v)) for k, v in x.iteritems()]) for x in config]
+            # Create projectile component and assign it material
+            for i in range(len(config)):
+                p_name = "Projectile-" + name + "-" + str(i).zfill(2)
+                conf_el = config[i]
+                element = mdb.models[modelName].PartFromGeometryFile(
+                    p_name,
+                    projectile,
+                    THREE_D,
+                    DEFORMABLE_BODY,
+                    bodyNum=int(conf_el['id'])
+                )
+                cells = element.cells.getSequenceFromMask(
+                    mask=
+                    (
+                        '[#1 ]',
+                    ),
+                )
+                region = element.Set(
+                    cells=cells,
+                    name='volume'
+                )
+                section = mdb.models[modelName].HomogeneousSolidSection(
+                    p_name,
+                    str(conf_el['material'])
+                )
+                element.SectionAssignment(
+                    sectionName=p_name,
+                    region=region,
+                )
             # Append subdirectory's name to available parts list
             availableParts.append(name)
 
