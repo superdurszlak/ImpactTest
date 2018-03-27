@@ -867,6 +867,18 @@ class ImpactTestKernel():
                             ),
                         )
                     )
+            if hasattr(material, 'maxpeDamageInitiation'):
+                if hasattr(material.maxpeDamageInitiation, 'damageEvolution'):
+                    strainAtFailure = material.maxpeDamageInitiation.damageEvolution.table[0][0]
+                    displacementAtFailure = strainAtFailure * self.failureCoefficient * 0.001
+                    material.johnsonCookDamageInitiation.damageEvolution.setValues(
+                        table=
+                        (
+                            (
+                                displacementAtFailure,
+                            ),
+                        )
+                    )
 
     # Create fake surface sets - they must be reselected by the user
     def createFakeSurfaceSets(self):
