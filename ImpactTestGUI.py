@@ -417,7 +417,7 @@ class ImpactTestGUI():
 
     # Set GUI title, layout, window size
     def configureAuxiliary(self):
-        self.master.title("Armor impact menu")
+        self.master.title("ImpactTest GUI")
         self.master.columnconfigure(
             0,
             weight=1

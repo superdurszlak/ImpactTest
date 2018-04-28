@@ -18,7 +18,7 @@ class ImpactTestKernel():
         if modelName != "Model-1":
             mdb.Model(self.modelName)
             # If model is other than default parts and materials must be imported again
-            from ImpactTestStart import importMaterials, importParts
+            from ImpactTestGUI import importMaterials, importParts
             importMaterials(self.modelName)
             importParts(self.modelName)
             del mdb.models['Model-1']
@@ -379,6 +379,8 @@ class ImpactTestKernel():
                 'S',
                 'SVAVG',
                 'PE',
+                'ER',
+                'ERV',
                 'PEVAVG',
                 'PEEQ',
                 'PEEQVAVG',
@@ -393,7 +395,7 @@ class ImpactTestKernel():
                 'RFL',
                 'EVF',
                 'STATUS',
-                'SDEG'
+                'SDEG',
             ),
             numIntervals=1000
         )

@@ -9,12 +9,12 @@ def init():
     toolset.registerKernelMenuButton(
         buttonText='ImpactTest',
         # Plugin's main module
-        moduleName="ImpactTestStart",
+        moduleName="ImpactTestGUI",
         # Module's function to be invoked
         functionName="run()",
         author='Szymon Durak',
         description='Ballistic impact model designer',
-        version='0.1',
+        version='0.2',
         helpUrl='https://github.com/superdurszlak/ImpactTest/blob/master/README.md'
     )
 
