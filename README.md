@@ -10,9 +10,9 @@ In order to use the plugin, paste the project's root directory to ```/.../abaqus
 ### Penetrator parts and material libraries
 The plugin does not, and never will provide out-of-the-box material libraries nor penetrator parts. Instead, you can paste your custom material libraries to ```/.../abaqus_plugins/ImpactTest/Materials``` folder to allow plugin to import them.
 
-To allow plugin to import your projectile's geometry, create a subfolder inside ```/.../abaqus_plugins/ImpactTest/Parts``` and paste projectile assembly in Acis \*.sat format. Keep in mind that the model's assumed units are \[m\], \[s\], \[kg\] while you dimension your projectile. In addition to that, you should provide elements.cfg file which in fact is simple json file describing both projectile parts' materials and IDs in the AcisFile. You should also make sure materials specified for projectile components exist in libraries pasted to Materials directory.
+To allow plugin to import your projectile's geometry, create a subfolder inside ```/.../abaqus_plugins/ImpactTest/Parts``` and paste projectile assembly in Acis \*.sat format. Keep in mind that the model's assumed units are \[m\], \[s\], \[kg\] while you dimension your projectile. In addition to that, you should provide ```elements.cfg``` file which in fact is simple json file describing both projectile parts' materials and IDs in the AcisFile. You should also make sure materials specified for projectile components exist in libraries pasted to Materials directory.
 
-Examplary elements.cfg file may look like this:
+Examplary ```elements.cfg``` file may look like this:
 ```
 [
   {
